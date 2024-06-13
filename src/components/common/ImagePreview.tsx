@@ -1,4 +1,4 @@
-import { ActionIcon, FileButton, Group, BackgroundImage } from '@mantine/core';
+import { ActionIcon, BackgroundImage, FileButton, Group } from '@mantine/core';
 import { IconPencil, IconX } from '@tabler/icons-react';
 
 interface ImagePreviewProps {
@@ -19,7 +19,12 @@ const ImagePreview = (props: ImagePreviewProps) => {
       className="image_preview"
     >
       <Group spacing={'xs'} align="center" position="right">
-        <FileButton onChange={props.onReplace}>
+        <FileButton
+          onChange={props.onReplace}
+          inputProps={{
+            accept: 'image/png, image, image/jpeg',
+          }}
+        >
           {(props) => (
             <ActionIcon
               {...props}

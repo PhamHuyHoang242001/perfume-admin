@@ -49,7 +49,9 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
       ...(value?.category && {
         category_ids: value?.category ? value?.category : categorySelected,
       }),
-      ...(search && { search: search }),
+      ...(search && {
+        search: value?.category !== categorySelected ? '' : search,
+      }),
       ...(value?.subCategory && {
         subcategory_ids: value?.subCategory,
       }),
@@ -74,6 +76,14 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
       console.log('error :>> ', error);
       setIsLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    getProduct({
+      category: categorySelected,
+      subCategory: subCategorySelected,
+      subSubCategory: subSubCategorySelected,
+    });
   };
 
   function openEditModal(id: number) {
@@ -140,6 +150,7 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
                   });
                   if (subCategorySelected) setSubCategorySelected(null);
                   if (subSubCategorySelected) setSubSubCategorySelected(null);
+                  if (search) setSearch('');
                 }}
                 style={{
                   width: '100%',
@@ -154,9 +165,26 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
         </List>
       </div>
       <div style={{ marginTop: '2rem', padding: '0 80px' }}>
-        <Title c="#B82C67" order={1} mb={4}>
-          Product management
-        </Title>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Title c="#B82C67" mb={4}>
+            Product management
+          </Title>
+          <Button
+            radius="md"
+            bg={' #B82C67'}
+            onClick={open}
+            rightIcon={<img src="/plus.svg" alt="icon" />}
+            sx={{ fontWeight: 500 }}
+          >
+            Add new product
+          </Button>
+        </div>
 
         <FunctionHeader
           title=""
@@ -186,6 +214,8 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
           }}
           subCategory={subCategory}
           subSubCategory={subSubCategory}
+          handleSearch={handleSearch}
+          searchValue={search}
         />
         {isLoading ? (
           <div
@@ -216,7 +246,7 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
             <Modal.Header>
               <Modal.Title>
                 <Title c={'#B82C67'} order={1} mt={32} ml={64}>
-                  Ajouter un nouveau produit
+                  Add new product
                 </Title>
               </Modal.Title>
               <Modal.CloseButton>
@@ -228,6 +258,8 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
                 onSuccess={() => {
                   // window.location.reload()
                 }}
+                listCategory={listCategory}
+                categorySelected={categorySelected}
               />
             </Modal.Body>
           </Modal.Content>

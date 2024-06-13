@@ -5,14 +5,14 @@ import {
   Container,
   Grid,
   Group,
+  Select,
   Stack,
   Tabs,
   TextInput,
   Title,
 } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { isNotEmpty, useForm } from '@mantine/form';
+import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
@@ -24,24 +24,113 @@ import {
   getDownloadURL,
   ref,
   uploadBytes,
-  uploadBytesResumable,
 } from 'firebase/storage';
 import { GetColorName } from 'hex-color-to-color-name';
-import { useState } from 'react';
+import { yupResolver } from 'mantine-form-yup-resolver';
+import { ChangeEvent, useState } from 'react';
+import * as yup from 'yup';
 import { apiRoute } from '../../utils/apiRoute';
 import { POST } from '../../utils/fetch';
 import { storage } from '../../utils/firebaseConfig';
-import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
+import {
+  CategoryType,
+  IAttribute,
+  IProductForm,
+} from '../../utils/utilsInterface';
 import AttributeCards from '../common/AttributeCards';
-import CustomSelect from '../common/CustomSelect';
 import ImagePreview from '../common/ImagePreview';
 import TextEditor from '../common/TextEditor';
-// import { productSchema } from '../../utils/validate';
-const ProductForm = (props: { onSuccess: () => void }) => {
+
+type ProductFormProps = {
+  listCategory: CategoryType[];
+  onSuccess: () => void;
+  categorySelected: string | number | null;
+};
+
+const schema = yup.object().shape({
+  name: yup.string().required('Name is required'),
+  price: yup
+    .string()
+    .required('Price is required')
+    .test({
+      name: 'greaterThanZero',
+      message: 'Price must be greater than 0',
+      test: function (value) {
+        const priceNumber = parseFloat(value);
+        return !isNaN(priceNumber) && priceNumber > 0;
+      },
+    })
+    .test({
+      name: 'decimalPlaces',
+      exclusive: false,
+      message: 'Price must have at most 1 decimal places',
+      test: function (currentPrice) {
+        if (!currentPrice) {
+          return true; // Skip validation if value is missing
+        }
+        const decimalPlaces =
+          currentPrice.toString().split('.')[1]?.length || 0;
+        return decimalPlaces <= 1;
+      },
+    })
+
+    .typeError('Invalid number')
+    .min(1, 'Price must be greater than or equal to 1'),
+
+  current_price: yup.string().when('price', (price, schema) => {
+    return schema
+      .test({
+        name: 'currentPriceLessThanPrice',
+        exclusive: false,
+        message: 'Current price must be less than price',
+        test: function (currentPrice) {
+          const { parent } = this;
+          const priceValue = parent.price;
+          if (!currentPrice || !priceValue) {
+            return true; // Skip validation if either value is missing
+          }
+          return parseFloat(currentPrice) < parseFloat(priceValue);
+        },
+      })
+      .test({
+        name: 'decimalPlaces',
+        exclusive: false,
+        message: 'Current price must have at most 1 decimal places',
+        test: function (currentPrice) {
+          if (!currentPrice) {
+            return true; // Skip validation if value is missing
+          }
+          const decimalPlaces =
+            currentPrice.toString().split('.')[1]?.length || 0;
+
+          return decimalPlaces <= 1;
+        },
+      })
+      .typeError('Invalid number')
+      .max(999999.99, 'Current price must be less than 999999.99');
+  }),
+});
+
+const ProductForm = ({
+  listCategory,
+  onSuccess,
+  categorySelected,
+}: ProductFormProps) => {
+  const listSubCategoryCurr = listCategory.find(
+    (item) => item.id === categorySelected,
+  );
+
   const [state, setState] = useState({
-    subCategory: [],
-    subsubCategory: {} as subsub,
-    categories: [],
+    subCategory:
+      listSubCategoryCurr?.subcategories?.map((item) => ({
+        value: item.id,
+        label: item.name,
+      })) || [],
+    subsubCategory: [] as any,
+    categories: listCategory.map((item) => ({
+      value: item.id,
+      label: item.name,
+    })),
     attributes: [],
     url_image: '',
     progress: 0,
@@ -49,7 +138,6 @@ const ProductForm = (props: { onSuccess: () => void }) => {
     colorAttribute: [] as IAttribute[],
     capacityAttribute: [] as IAttribute[],
     packagingAttribute: [] as IAttribute[],
-    start_date: '',
   });
   const {
     loading,
@@ -60,28 +148,22 @@ const ProductForm = (props: { onSuccess: () => void }) => {
     colorAttribute,
     capacityAttribute,
     packagingAttribute,
-    start_date,
   } = state;
-  const [firebaseImage, setFireBaseImage] = useState<string[]>([]);
+
   const today = new Date().getDate();
   const thisMonth = new Date().getMonth() + 1;
   const thisYear = new Date().getFullYear();
   const createdDay = `${today}-${thisMonth}-${thisYear}`;
 
-  // const [images, setImages] = useState<File>();
-  const form = useForm<IProductForm>({
-    validate: {
-      url_image: isNotEmpty('please upload image'),
-      price: (value) => (value.toString().length >= 9 ? 'error' : null),
-    },
+  const form = useForm<IProductForm | any>({
+    validate: yupResolver(schema),
     initialValues: {
       name: '',
       weight: 0,
       status: 'Active',
       available: true,
-      publish_date: `${thisYear}-${thisMonth}-${today}`,
       price: 0,
-      discount_price: 0,
+      current_price: 0,
       url_image: '',
       note: {
         Caractéristiques: '',
@@ -89,13 +171,10 @@ const ProductForm = (props: { onSuccess: () => void }) => {
         Description: '',
         Utilisation: '',
       },
-      category_id: 0,
-      subcategory_id: 0,
-      subsubcategory_id: 0,
-      amount: 0,
-      discount_start_date: '',
-      discount_end_date: '',
-      album: [],
+      category_id: categorySelected as any,
+      subcategory_id: null,
+      sub_subcategory_id: null,
+      quantity: 0,
       capacity: {},
       color: {},
       packaging: {},
@@ -150,45 +229,12 @@ const ProductForm = (props: { onSuccess: () => void }) => {
     },
   });
 
-  async function getSubCategory(id: string) {
-    const controller = new AbortController();
-
-    try {
-      await fetch(`/api/subcategory/list/${+id}`, {
-        signal: controller.signal,
-      });
-      await fetch(`/api/subcategory/list/${+id}`, { signal: controller.signal })
-        .then((res) => res.json())
-        .then((data) =>
-          setState((p) => ({
-            ...p,
-            subCategory: data?.map((item: { name: string; id: number }) => ({
-              value: item.id,
-              label: item.name,
-            })),
-          })),
-        );
-    } catch (e) {
-      controller.abort();
-      notifications.show({
-        title: 'Warning',
-        message: `${e}`,
-        color: 'red',
-      });
-    }
-  }
-  async function getSubSub(id: number) {
-    await fetch(`/api/subsubcategory/detail/${id}`)
-      .then((res) => res.json())
-      .then((data) => setState((p) => ({ ...p, subsubCategory: data })));
-  }
   async function createNewProduct(v: IProductForm) {
     try {
-      const res = await POST(apiRoute.create_product, v).then((res) =>
-        res.json(),
-      );
-      if (res.message !== 'Data not valid') {
-        props.onSuccess();
+      const res = await POST(apiRoute.create_product, v);
+
+      if (res.status === 200) {
+        onSuccess();
       } else {
         notifications.show({
           message: 'veuillez saisir tous les champs',
@@ -203,6 +249,12 @@ const ProductForm = (props: { onSuccess: () => void }) => {
     }
   }
 
+  const handleInput = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value.length > 9) {
+      e.target.value = e.target.value.slice(0, 9);
+    }
+  };
+
   return (
     <div>
       <form
@@ -210,14 +262,23 @@ const ProductForm = (props: { onSuccess: () => void }) => {
         style={{ padding: '32px 64px' }}
       >
         <Stack spacing={'lg'}>
-          <Group spacing={'xl'}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 16,
+            }}
+          >
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Nom du produit</span>
+              <span style={{ color: '#707070' }}>
+                Name of product <span style={{ color: '#FF0000' }}>*</span>
+              </span>
               <TextInput
                 p={'0 10px'}
                 h={36}
                 variant={'unstyled'}
                 width={313}
+                maxLength={100}
                 mt={'8px'}
                 {...form.getInputProps('name')}
                 sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
@@ -225,78 +286,125 @@ const ProductForm = (props: { onSuccess: () => void }) => {
               />
             </div>
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Date de création</span>
+              <span style={{ color: '#707070' }}>Creation date</span>
               <div className={'badge_child'}>
                 <p>{createdDay}</p>
-                <img
-                  src={'/calendar.svg'}
-                  alt={'icon'}
-                  width={30}
-                  height={30}
-                />
               </div>
             </div>{' '}
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Statut</span>
+              <span style={{ color: '#707070' }}>Status</span>
               <div className={'badge_child'}>
                 <p>Active</p>
               </div>
             </div>{' '}
-          </Group>
-          <Group>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 16,
+            }}
+          >
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Categories</span>
-              <CustomSelect
+              <span style={{ color: '#707070' }}>
+                Category <span style={{ color: '#FF0000' }}>*</span>
+              </span>
+              <Select
                 width="19.5625rem"
                 height="2.25rem"
-                data={categories}
-                selectBG={{
-                  color: '#FFE7EF',
-                  image: '/down_arrow.svg',
-                  posX: '18.5625rem',
-                  posY: '18px',
+                data={categories as any}
+                variant="unstyled"
+                value={form.values?.category_id as any}
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  fontSize: 12,
+                  marginTop: 8,
                 }}
-                onChange={function (
-                  e: React.ChangeEvent<HTMLSelectElement>,
-                ): void {
-                  getSubCategory(e.target.value);
-                  form.setFieldValue('category_id', +e.target.value);
+                onChange={(v) => {
+                  form.setFieldValue('category_id', v as any);
+                  const newSubCate = listCategory.find(
+                    (item) => v && item?.id && +item.id === +v,
+                  );
+                  const convertList =
+                    newSubCate?.subcategories?.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                      ...item,
+                    })) || [];
+                  setState((prev) => ({
+                    ...prev,
+                    subCategory: convertList,
+                  }));
+                  form.setFieldValue('subcategory_id', null);
+                  form.setFieldValue('sub_subcategory_id', null);
+                  subsubCategory &&
+                    setState((prev) => ({
+                      ...prev,
+                      subsubCategory: [],
+                    }));
                 }}
-                required={true}
               />
             </div>{' '}
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Sub-catégorie</span>
-              <CustomSelect
+              <span style={{ color: '#707070' }}>Sub-category</span>
+              <Select
                 width="19.5625rem"
                 height="2.25rem"
-                data={subCategory}
-                selectBG={{
-                  color: '#FFE7EF',
-                  image: '/down_arrow.svg',
-                  posX: '18.5625rem',
-                  posY: '18px',
+                data={subCategory as any}
+                value={form.values?.subcategory_id as any}
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  fontSize: 12,
+                  marginTop: 8,
                 }}
-                onChange={(e) => {
-                  getSubSub(+e.target.value);
-                  form.setFieldValue('subcategory_id', +e.target.value);
-                }}
-                required={true}
-              />
-            </div>{' '}
-            <div className={'badge'} style={{ marginLeft: '1rem' }}>
-              <div className={'badge_child'} style={{ marginTop: '2rem' }}>
-                <p>{subsubCategory && subsubCategory?.name}</p>
-              </div>
-            </div>
-          </Group>
+                onChange={(v) => {
+                  form.setFieldValue('subcategory_id', v as any);
+                  const newSubCate = subCategory.find(
+                    (item: any) => v && +item.value === +v,
+                  ) as any;
 
-          <Title order={3} c={'#E7639A'} mt={18}>
-            Image du produit
-          </Title>
+                  const convertList =
+                    newSubCate?.sub_subcategories?.map((item: any) => ({
+                      value: item.id,
+                      label: item.name,
+                    })) || [];
+                  setState((prev) => ({
+                    ...prev,
+                    subsubCategory: convertList,
+                  }));
+                }}
+              />
+            </div>{' '}
+            <div className={'badge'}>
+              <span style={{ color: '#707070' }}>Sub-sub-category</span>
+              <Select
+                width="19.5625rem"
+                height="2.25rem"
+                data={subsubCategory as any}
+                value={form.values?.sub_subcategory_id as any}
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  marginTop: 8,
+                  fontSize: 12,
+                }}
+                onChange={(v) => {
+                  form.setFieldValue('sub_subcategory_id', v as any);
+                }}
+              />
+            </div>{' '}
+          </div>
+
           <Group spacing={'xl'}>
             <div>
-              <h4 style={{ color: '#E7639A' }}>Grande</h4>
+              <h4 style={{ color: '#B82C67' }}>Product image</h4>
               {url_image ? (
                 <>
                   <ImagePreview
@@ -305,49 +413,28 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     remove={false}
                     image={url_image}
                     onReplace={(file) => {
-                      setState((p) => ({ ...p, loading: true }));
-                      const deleteRef = ref(storage, url_image);
-                      deleteObject(deleteRef)
-                        .then(() => console.log('success'))
-                        .catch((e) => console.warn(e));
-                      const imageRef = ref(storage, `test_image/${Date.now()}`);
-                      uploadBytes(imageRef, file).then((snapshot) => {
-                        getDownloadURL(snapshot.ref)
-                          .then((url) => {
-                            setState((p) => ({
-                              ...p,
-                              url_image: url,
-                              loading: false,
-                            }));
-
-                            form.setFieldValue('url_image', url);
-                          })
-                          .catch((e) => console.warn(e));
-                      });
+                      if (file) {
+                        setState((p) => ({
+                          ...p,
+                          url_image: URL.createObjectURL(file),
+                        }));
+                        form.setFieldValue('image', file);
+                      }
                     }}
                   />
                 </>
               ) : (
                 <Dropzone
-                  onDrop={function (file) {
-                    setState((p) => ({ ...p, loading: true }));
-
-                    const imageRef = ref(storage, `test_image/${Date.now()}`);
-                    uploadBytes(imageRef, file?.[0]).then((snapshot) => {
-                      getDownloadURL(snapshot.ref)
-                        .then((url) => {
-                          setState((p) => ({
-                            ...p,
-                            url_image: url,
-                            loading: false,
-                          }));
-                          form.setFieldValue('url_image', url);
-                        })
-                        .catch((e) => console.warn(e));
-                    });
+                  onDrop={(file) => {
+                    file?.[0] &&
+                      setState((p) => ({
+                        ...p,
+                        url_image: URL.createObjectURL(file?.[0]),
+                      }));
+                    form.setFieldValue('image', file);
                   }}
-                  loading={loading}
                   w={174}
+                  multiple={false}
                   h={174}
                   pt={'50px'}
                   accept={IMAGE_MIME_TYPE}
@@ -359,123 +446,25 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                       height={32}
                       alt={'img'}
                     />
-                    <p style={{ fontSize: '13px' }}>Ajouter une photo</p>
+                    <p style={{ fontSize: '13px' }}>Add image</p>
                   </div>
                 </Dropzone>
               )}
             </div>
-            <div style={{ marginLeft: '5rem' }}>
-              <h4 style={{ color: '#E7639A' }}>Album</h4>
-              <Group>
-                <Dropzone
-                  multiple={false}
-                  disabled={firebaseImage.length >= 6}
-                  onDrop={function (file) {
-                    const images = [];
-                    file.map((item) => {
-                      const storageRef = ref(
-                        storage,
-                        `test_image/${(Math.random() + 1)
-                          .toString(36)
-                          .substring(2)}`,
-                      );
-                      const uploadTask = uploadBytesResumable(storageRef, item);
-                      images.push(uploadTask);
-                      uploadTask.on(
-                        'state_changed',
-                        (snapshot) => {
-                          const prog = Math.round(
-                            (snapshot.bytesTransferred / snapshot.totalBytes) *
-                              100,
-                          );
-                          setState((p) => ({ ...p, progress: prog }));
-                        },
-                        (error) => console.warn(error),
-                        async () => {
-                          await getDownloadURL(uploadTask.snapshot.ref).then(
-                            (downloadURLs) => {
-                              setFireBaseImage((p) => [...p, downloadURLs]);
-                            },
-                          );
-                        },
-                      );
-                    });
-                  }}
-                  accept={IMAGE_MIME_TYPE}
-                  w={174}
-                  h={174}
-                  pt={'50px'}
-                >
-                  <div style={{ textAlign: 'center' }}>
-                    <img
-                      src={'/add_image_ic.svg'}
-                      width={32}
-                      height={32}
-                      alt={'img'}
-                    />
-                    <p style={{ fontSize: '13px' }}>Ajouter une photo</p>
-                  </div>
-                </Dropzone>
-                <div
-                  style={{ overflowX: 'auto', display: 'flex', width: '520px' }}
-                >
-                  {firebaseImage &&
-                    firebaseImage.map((image, index) => (
-                      <div key={index} style={{ marginLeft: '1rem' }}>
-                        <ImagePreview
-                          image={image}
-                          remove={true}
-                          onRemove={function (): void {
-                            setFireBaseImage(
-                              firebaseImage.filter((item) => item !== image),
-                            );
-                            const deleteRef = ref(storage, image);
-                            deleteObject(deleteRef)
-                              .then(() => console.log('success delete'))
-                              .catch((e) => console.warn(e));
-                          }}
-                          onReplace={function (e: File): void {
-                            const newImage = [...firebaseImage];
-                            const deleteRef = ref(storage, image);
-                            deleteObject(deleteRef)
-                              .then(() => console.log('delete success'))
-                              .catch((e) => console.warn(e));
-                            const imageRef = ref(
-                              storage,
-                              `test_image/${(Math.random() + 1)
-                                .toString(36)
-                                .substring(2)}`,
-                            );
-                            uploadBytes(imageRef, e).then((snapshot) => {
-                              getDownloadURL(snapshot.ref)
-                                .then((url) => {
-                                  newImage[index] = url;
-                                  setFireBaseImage(newImage);
-                                })
-                                .catch((e) => console.warn(e));
-                            });
-                          }}
-                          imageWidth={174}
-                          imageHeight={174}
-                        />
-                      </div>
-                    ))}
-                </div>
-              </Group>
-            </div>
           </Group>
           <div>
             <Title align={'center'} order={2} c={'#B82C67'} mt={'4rem'}>
-              Données du produit
+              Product detail
             </Title>
 
             <Grid gutter={7} gutterXs="md" gutterMd="xl" gutterXl={50}>
               <Grid.Col span={6}>
-                <h4 style={{ color: '#E7639A' }}>Prix</h4>
+                <h4 style={{ color: '#E7639A' }}>Price</h4>
 
                 <div className={'badge'}>
-                  <span style={{ color: '#7C7C7C' }}>
-                    Prix du produit ( € ){' '}
+                  <span style={{ color: '#707070' }}>
+                    Price of product ($){' '}
+                    <span style={{ color: '#FF0000' }}>*</span>
                   </span>
                   <TextInput
                     sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
@@ -484,8 +473,9 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     pl={10}
                     mt={8}
                     variant={'unstyled'}
-                    type={'text'}
+                    type={'number'}
                     inputMode="numeric"
+                    onInput={handleInput}
                     onChange={(e) =>
                       form.setFieldValue('price', +e.target.value)
                     }
@@ -494,9 +484,8 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     error={Object.hasOwn(form.errors, 'price') ? 'error' : null}
                   />
                 </div>
-
                 <div className={'badge'} style={{ marginTop: '8px' }}>
-                  <span style={{ color: '#7C7C7C' }}>Prix bas ( € ) </span>
+                  <span style={{ color: '#707070' }}>Sale price ($) </span>
                   <TextInput
                     min={0}
                     required
@@ -509,57 +498,21 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     inputMode="numeric"
                     variant={'unstyled'}
                     onChange={(e) =>
-                      form.setFieldValue('discount_price', +e.target.value)
+                      form.setFieldValue('current_price', +e.target.value)
                     }
                     // {...form.getInputProps('discount_price')}
                   />
                 </div>
-
-                <Box
-                  component={'div'}
-                  sx={{ display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <div>
-                    <span style={{ color: '#7C7C7C' }}>Depuis</span>
-                    <DateInput
-                      sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                      w={228}
-                      h={36}
-                      minDate={new Date()}
-                      mt={8}
-                      variant={'unstyled'}
-                      onChange={(e) => {
-                        form.setFieldValue('discount_start_date', e);
-                        setState((p) => ({ ...p, start_date: String(e) }));
-                      }}
-                      rightSection={<img src={'calendar.svg'} alt={'icon'} />}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <span style={{ color: '#7C7C7C' }}>Pour</span>
-                    <DateInput
-                      required
-                      sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                      w={228}
-                      h={36}
-                      mt={8}
-                      variant={'unstyled'}
-                      minDate={new Date(start_date)}
-                      rightSection={<img src={'calendar.svg'} alt={'icon'} />}
-                      disabled={start_date === ''}
-                      {...form.getInputProps('discount_end_date')}
-                    />
-                  </div>
-                </Box>
               </Grid.Col>
               <Grid.Col span={6}>
-                <h4 style={{ color: '#E7639A' }}>Entrepôt</h4>
+                <h4 style={{ color: '#E7639A' }}>Quantity </h4>
                 <div
                   style={{ display: 'flex', justifyContent: 'space-between' }}
                 >
                   <div>
-                    <span style={{ color: '#7C7C7C' }}>Lester ( g ) </span>
+                    <span style={{ color: '#707070' }}>
+                      Mass (g) <span style={{ color: '#FF0000' }}>*</span>{' '}
+                    </span>
                     <TextInput
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
                       w={228}
@@ -577,20 +530,23 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     />
                   </div>
                   <div>
-                    <span style={{ color: '#7C7C7C' }}>Entre pôt </span>
+                    <span style={{ color: '#707070' }}>
+                      Quantity <span style={{ color: '#FF0000' }}>*</span>{' '}
+                    </span>
                     <TextInput
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
                       w={228}
                       h={36}
                       pl={10}
                       mt={8}
+                      max={9999999999}
                       variant={'unstyled'}
                       type={'number'}
                       onChange={(e) =>
-                        form.setFieldValue('amount', +e.target.value)
+                        form.setFieldValue('quantity', +e.target.value)
                       }
                       required
-                      min={0}
+                      min={1}
                     />
                   </div>
                 </div>
@@ -602,7 +558,7 @@ const ProductForm = (props: { onSuccess: () => void }) => {
             <Tabs defaultValue={'1'}>
               <div style={{ width: '18.75rem' }}>
                 <Tabs.List>
-                  <Tabs.Tab value={'1'}>Colour</Tabs.Tab>
+                  <Tabs.Tab value={'1'}>Color</Tabs.Tab>
                   <Tabs.Tab value={'2'}>Contenace</Tabs.Tab>
                   <Tabs.Tab value={'3'}>Packaging</Tabs.Tab>
                 </Tabs.List>
@@ -615,9 +571,10 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon
@@ -766,6 +723,25 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                               colorAttribute: newPrice,
                             }));
                           }}
+                          onNameColorChange={(value: string) => {
+                            const currentIndex = colorAttribute.findIndex(
+                              (i) => i === colorAttribute[index],
+                            );
+                            const addColor = {
+                              ...colorAttribute[currentIndex],
+                              name: value,
+                            };
+                            const newColor = [
+                              ...colorAttribute.slice(0, currentIndex),
+                              addColor,
+                              ...colorAttribute.slice(currentIndex + 1),
+                            ];
+
+                            setState((p) => ({
+                              ...p,
+                              colorAttribute: newColor,
+                            }));
+                          }}
                           onColorChange={(color) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
@@ -800,9 +776,10 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon
@@ -986,9 +963,10 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon

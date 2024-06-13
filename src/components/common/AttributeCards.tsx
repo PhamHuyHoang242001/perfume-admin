@@ -1,5 +1,3 @@
-import { Dropzone, FileWithPath, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import React from 'react';
 import {
   Box,
   Button,
@@ -10,13 +8,15 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { Dropzone, FileWithPath, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import React from 'react';
 import ImagePreview from './ImagePreview';
 type attributeCardProps = {
   onAddImage: (file: FileWithPath[]) => void;
   attributeType?: string;
   attributePrice?: number;
   onCancel?: () => void;
-  
+
   productImage: string;
   attributeIndex?: number;
   attributeTitle: string;
@@ -27,6 +27,7 @@ type attributeCardProps = {
   onReplaceImage: (file: File) => void;
   defaultColor?: string;
   attributeName?: string;
+  onNameColorChange?: (value: string) => void;
 };
 
 const AttributeCards: React.FC<attributeCardProps> = ({
@@ -44,11 +45,17 @@ const AttributeCards: React.FC<attributeCardProps> = ({
   onAttributeChange,
   defaultColor,
   attributeName,
+  onNameColorChange,
 }) => {
   // const [chooseColor, setChooseColor] = React.useState(false);
   // const [color, setColor] = React.useState('');
   return (
-    <Paper w={'14.4375rem'} h={'17.75rem'} bg={'#fff8f8'} radius={'sm'}>
+    <Paper
+      w={'14.4375rem'}
+      h={onColorChange ? '19rem' : '17.75rem'}
+      bg={'#fff8f8'}
+      radius={'sm'}
+    >
       {productImage ? (
         <ImagePreview
           remove={false}
@@ -73,9 +80,44 @@ const AttributeCards: React.FC<attributeCardProps> = ({
         </Dropzone>
       )}
       <Box p={'0.5rem 1rem'}>
-        <Title order={5} c={'#B82C67'}>
-          Type-{attributeIndex}
-        </Title>
+        {onColorChange ? (
+          <div>
+            <span style={{ color: '#707070', fontSize: 12 }}>
+              Name <span style={{ color: '#FF0000' }}>*</span>{' '}
+            </span>
+            <TextInput
+              sx={{
+                border: '1px solid #B82C67',
+                borderRadius: '5px',
+                fontSize: 12,
+                '.mantine-1v7s5f8': {
+                  minHeight: 24,
+                  height: 20,
+                  '.mantine-qrbs6p': {
+                    height: 20,
+                    minHeight: 24,
+                    padding: '2px 0',
+                  },
+                },
+              }}
+              h={24}
+              pl={10}
+              bg="white"
+              maxLength={20}
+              variant={'unstyled'}
+              type={'text'}
+              onChange={(e) =>
+                onNameColorChange && onNameColorChange(e.target?.value)
+              }
+              required
+              min={1}
+            />
+          </div>
+        ) : (
+          <Title order={5} c={'#B82C67'}>
+            Type-{attributeIndex}
+          </Title>
+        )}
         <div
           style={{
             display: 'flex',
@@ -132,7 +174,6 @@ const AttributeCards: React.FC<attributeCardProps> = ({
             <Button variant={'subtle'} onClick={onCancel}>
               <span style={{ color: '#333' }}>Delete</span>
             </Button>
-        
           </Box>
         )}
       </Box>

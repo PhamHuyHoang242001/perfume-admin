@@ -1,4 +1,4 @@
-import { Button, Select, Space, TextInput, Title } from '@mantine/core';
+import { Select, Space, TextInput, Title } from '@mantine/core';
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -13,6 +13,8 @@ interface FuntionHeaderProps {
   subSubCategory: { value: string; label: string }[];
   subCategorySelected?: string;
   subSubCategorySelected?: string;
+  handleSearch: () => void;
+  searchValue: string;
 }
 const FunctionHeader = (props: FuntionHeaderProps) => {
   const location = useLocation();
@@ -20,15 +22,6 @@ const FunctionHeader = (props: FuntionHeaderProps) => {
 
   return (
     <div>
-      <Button
-        radius="md"
-        bg={' #B82C67'}
-        onClick={props.onCreateNew}
-        rightIcon={<img src="/plus.svg" alt="icon" />}
-        sx={{ float: 'right' }}
-      >
-        Nouveau Produit
-      </Button>
       <Space h="md" />
       <Title c="pink" order={3} mb={4}>
         {props.title}
@@ -54,16 +47,20 @@ const FunctionHeader = (props: FuntionHeaderProps) => {
                 w={'200px'}
                 h={'3.625rem'}
                 sx={{
-                  padding: '8px 16px  ',
                   borderRadius: '5px',
-                  marginRight: '72px',
+                  marginRight: '20px',
                   whiteSpace: 'normal',
                   '.mantine-bkyer9': {
                     height: 20,
                     minHeight: 0,
+                    fontWeight: 500,
+                    paddingLeft: 16,
                   },
                   '.mantine-1fzet7j': {
                     fontSize: 12,
+                    color: '#858585',
+                    paddingLeft: 16,
+                    paddingTop: 8,
                   },
                 }}
               />
@@ -79,9 +76,21 @@ const FunctionHeader = (props: FuntionHeaderProps) => {
                 w={'200px'}
                 h={'3.625rem'}
                 sx={{
-                  padding: '2px 10px 0 ',
                   borderRadius: '5px',
-                  marginRight: '72px',
+                  marginRight: '20px',
+                  whiteSpace: 'normal',
+                  '.mantine-bkyer9': {
+                    height: 20,
+                    fontWeight: 500,
+                    paddingLeft: 16,
+                    minHeight: 0,
+                  },
+                  '.mantine-1fzet7j': {
+                    fontSize: 12,
+                    color: '#858585',
+                    paddingLeft: 16,
+                    paddingTop: 8,
+                  },
                 }}
               />
             </>
@@ -98,29 +107,59 @@ const FunctionHeader = (props: FuntionHeaderProps) => {
             variant="unstyled"
             label="Status"
             bg={'#FFE7EF'}
-            w={'21.375rem'}
+            w={'200px'}
             h={'3.625rem'}
             sx={{
-              padding: '2px 10px 0 ',
               borderRadius: '5px',
+              marginRight: '20px',
+              whiteSpace: 'normal',
+              '.mantine-bkyer9': {
+                fontWeight: 500,
+                height: 20,
+                paddingLeft: 16,
+                minHeight: 0,
+              },
+              '.mantine-1fzet7j': {
+                fontSize: 12,
+                color: '#858585',
+                paddingLeft: 16,
+                paddingTop: 8,
+              },
             }}
           />
         </div>
 
         <div>
-          <span style={{ color: '#B82C67', marginBottom: '10px' }}>
-            Search for product
+          <span style={{ color: '#B82C67', marginBottom: '4px', fontSize: 12 }}>
+            Search
           </span>
 
           <TextInput
-            rightSection={<img src="/search.svg" alt="icon" />}
+            rightSection={
+              <img
+                src="/search.svg"
+                alt="icon"
+                style={{ zIndex: 100, cursor: 'pointer' }}
+                onClick={props.handleSearch}
+              />
+            }
             variant="unstyled"
             sx={{
               border: '1px solid #B82C67',
               padding: '0 5px',
               borderRadius: '5px',
               width: '347px',
+              height: 32,
+              minHeight: 32,
+              fontSize: 14,
+              '.mantine-1v7s5f8, .mantine-nilrrg': {
+                height: 32,
+              },
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') props.handleSearch();
+            }}
+            value={props.searchValue}
             onChange={props.onSearch}
           />
         </div>
