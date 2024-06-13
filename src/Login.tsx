@@ -1,14 +1,16 @@
 import {
-  TextInput,
-  PasswordInput,
-  Paper,
-  Title,
-  Container,
   Button,
+  Container,
+  Paper,
+  PasswordInput,
+  TextInput,
+  Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { POST } from './utils/fetch';
 import { notifications } from '@mantine/notifications';
+import { setCookie } from './utils/cookies';
+import { POST } from './utils/fetch';
+
 export default function Login() {
   const form = useForm({
     initialValues: {
@@ -21,9 +23,10 @@ export default function Login() {
   });
   const login = async (v: { email: string; password: string }) => {
     try {
-      const res = await POST('/api/admin/login', v).then((res) => res.json());
-      if (res.is_admin) {
-        localStorage.setItem('auth', 'true');
+      const res = await POST('/api/auth/login/', v);
+      if (res.status === 200) {
+        setCookie('access_token', res.data?.access);
+        setCookie('refresh_token', res.data?.refresh);
         window.location.reload();
       } else {
         notifications.show({

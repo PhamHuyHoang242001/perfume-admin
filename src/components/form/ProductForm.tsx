@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Box,
   Button,
   Container,
@@ -8,34 +9,33 @@ import {
   Tabs,
   TextInput,
   Title,
-  ActionIcon,
 } from '@mantine/core';
-import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
-import { useEffect, useState } from 'react';
-import { notifications } from '@mantine/notifications';
 import { DateInput } from '@mantine/dates';
-import { useForm, isNotEmpty } from '@mantine/form';
-import { POST } from '../../utils/fetch';
-import { apiRoute } from '../../utils/apiRoute';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { GetColorName } from 'hex-color-to-color-name';
-import { storage } from '../../utils/firebaseConfig';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-  uploadBytesResumable,
-} from 'firebase/storage';
-import TextEditor from '../common/TextEditor';
-import { useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
+import { isNotEmpty, useForm } from '@mantine/form';
+import { notifications } from '@mantine/notifications';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
+import Underline from '@tiptap/extension-underline';
+import { useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+  uploadBytesResumable,
+} from 'firebase/storage';
+import { GetColorName } from 'hex-color-to-color-name';
+import { useState } from 'react';
+import { apiRoute } from '../../utils/apiRoute';
+import { POST } from '../../utils/fetch';
+import { storage } from '../../utils/firebaseConfig';
+import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
 import AttributeCards from '../common/AttributeCards';
-import ImagePreview from '../common/ImagePreview';
 import CustomSelect from '../common/CustomSelect';
+import ImagePreview from '../common/ImagePreview';
+import TextEditor from '../common/TextEditor';
 // import { productSchema } from '../../utils/validate';
 const ProductForm = (props: { onSuccess: () => void }) => {
   const [state, setState] = useState({
@@ -203,46 +203,6 @@ const ProductForm = (props: { onSuccess: () => void }) => {
     }
   }
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/category/create', { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data) =>
-        setState((p) => ({
-          ...p,
-          categories: data.map((item: { id: number; name: string }) => ({
-            value: item.id,
-            label: item.name,
-          })),
-        })),
-      );
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  useEffect(() => {
-    if (firebaseImage) {
-      form.setFieldValue('album', firebaseImage);
-    }
-    if (colorAttribute) {
-      form.setFieldValue('color', Object.assign({}, colorAttribute));
-    }
-    if (capacityAttribute) {
-      form.setFieldValue('capacity', Object.assign({}, capacityAttribute));
-    }
-    if (packagingAttribute) {
-      form.setFieldValue('packaging', Object.assign({}, packagingAttribute));
-    }
-    if (subsubCategory) {
-      form.setFieldValue('subsubcategory_id', subsubCategory.id);
-    }
-  }, [
-    firebaseImage,
-    colorAttribute,
-    capacityAttribute,
-    packagingAttribute,
-    subsubCategory,
-  ]);
   return (
     <div>
       <form
@@ -525,7 +485,7 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     mt={8}
                     variant={'unstyled'}
                     type={'text'}
-                    inputMode='numeric'
+                    inputMode="numeric"
                     onChange={(e) =>
                       form.setFieldValue('price', +e.target.value)
                     }
@@ -546,7 +506,7 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                     pl={10}
                     mt={8}
                     type={'text'}
-                    inputMode='numeric'
+                    inputMode="numeric"
                     variant={'unstyled'}
                     onChange={(e) =>
                       form.setFieldValue('discount_price', +e.target.value)
@@ -608,7 +568,7 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                       mt={8}
                       variant={'unstyled'}
                       type={'text'}
-                    inputMode='numeric'
+                      inputMode="numeric"
                       onChange={(e) =>
                         form.setFieldValue('weight', +e.target.value)
                       }
@@ -788,7 +748,6 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                                 .catch((e) => console.warn(e));
                             }
                           }}
-                          
                           onPriceChange={(e) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
@@ -976,7 +935,6 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                                   .catch((e) => console.warn(e));
                               }
                             }}
-                            
                             onPriceChange={(e) => {
                               const currentIndex = capacityAttribute.findIndex(
                                 (i) => i === capacityAttribute[index],
@@ -1166,7 +1124,6 @@ const ProductForm = (props: { onSuccess: () => void }) => {
                                   .catch((e) => console.warn(e));
                               }
                             }}
-                           
                             onPriceChange={(e) => {
                               const currentIndex = packagingAttribute.findIndex(
                                 (i) => i === packagingAttribute[index],

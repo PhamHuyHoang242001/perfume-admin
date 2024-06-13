@@ -1,13 +1,18 @@
-import { Button, Select, Space, Title, TextInput } from '@mantine/core';
-import { useLocation } from 'react-router-dom';
+import { Button, Select, Space, TextInput, Title } from '@mantine/core';
 import React from 'react';
+import { useLocation } from 'react-router-dom';
+
 interface FuntionHeaderProps {
   onCreateNew: () => void;
   title: string;
-  onSelectCategories: (v: string) => void;
+  onSelectSubCategories: (v: string) => void;
+  onSelectSubSubCategories?: (v: string) => void;
   onSelectStatus: (v: string) => void;
   onSearch: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  categoriesData: { value: string; label: string }[];
+  subCategory: { value: string; label: string }[];
+  subSubCategory: { value: string; label: string }[];
+  subCategorySelected?: string;
+  subSubCategorySelected?: string;
 }
 const FunctionHeader = (props: FuntionHeaderProps) => {
   const location = useLocation();
@@ -37,33 +42,61 @@ const FunctionHeader = (props: FuntionHeaderProps) => {
       >
         <div style={{ display: 'flex' }}>
           {currentPath !== '/voucher_manager' && (
-            <Select
-              data={props.categoriesData}
-              label="Categories"
-              variant="unstyled"
-              rightSection={<img alt="icon" src="/down_arrow.svg" />}
-              onChange={props.onSelectCategories}
-              bg={'#FFE7EF'}
-              w={'21.375rem'}
-              h={'3.625rem'}
-              sx={{
-                padding: '2px 10px 0 ',
-                borderRadius: '5px',
-                marginRight: '72px',
-              }}
-            />
+            <>
+              <Select
+                data={props.subCategory}
+                label="Sub-category"
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                onChange={props.onSelectSubCategories}
+                value={props?.subCategorySelected}
+                bg={'#FFE7EF'}
+                w={'200px'}
+                h={'3.625rem'}
+                sx={{
+                  padding: '8px 16px  ',
+                  borderRadius: '5px',
+                  marginRight: '72px',
+                  whiteSpace: 'normal',
+                  '.mantine-bkyer9': {
+                    height: 20,
+                    minHeight: 0,
+                  },
+                  '.mantine-1fzet7j': {
+                    fontSize: 12,
+                  },
+                }}
+              />
+
+              <Select
+                data={props.subSubCategory}
+                label="Sub-sub-category"
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                onChange={props.onSelectSubSubCategories}
+                value={props?.subSubCategorySelected}
+                bg={'#FFE7EF'}
+                w={'200px'}
+                h={'3.625rem'}
+                sx={{
+                  padding: '2px 10px 0 ',
+                  borderRadius: '5px',
+                  marginRight: '72px',
+                }}
+              />
+            </>
           )}
           <Select
             data={[
-              { value: 'all', label: 'Totalité' },
-              { value: 'Active', label: 'Actif' },
-              { value: 'Inactive', label: 'Inactif' },
-              { value: 'Stockout', label: 'Rupture De Stock' },
+              { value: 'all', label: 'All' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Inactive', label: 'Inactive' },
+              { value: 'Stockout', label: 'Stockout' },
             ]}
             onChange={props.onSelectStatus}
             rightSection={<img alt="icon" src="/down_arrow.svg" />}
             variant="unstyled"
-            label="Statut"
+            label="Status"
             bg={'#FFE7EF'}
             w={'21.375rem'}
             h={'3.625rem'}

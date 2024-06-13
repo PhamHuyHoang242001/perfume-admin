@@ -1,35 +1,15 @@
-import { Tabs, Title } from '@mantine/core';
+import { Tabs } from '@mantine/core';
 
-import { CategoryType } from '../../utils/utilsInterface';
-import CategoryContent from './CategoryContent';
 import useData from '../../hooks/useData';
-const { List, Panel, Tab } = Tabs;
+import CategoryContent from './CategoryContent';
 const Product = () => {
-  const { categories } = useData('/api/category/create');
+  const { categories, loading } = useData('/api/category/list_tree');
 
-  return categories != null ? (
-    <Tabs defaultValue={categories?.[0]?.slug}>
-      <div style={{ padding: '0 30px' }}>
-        <List grow>
-          {categories?.map((item: CategoryType) => (
-            <Tab value={item?.slug || ''} key={item.id}>
-              <Title c={'pink'} order={4}>
-                {item?.name}
-              </Title>
-            </Tab>
-          ))}
-        </List>
-      </div>
-      <div style={{ marginTop: '2rem', padding: '0 80px' }}>
-        {categories?.map((item: CategoryType) => (
-          <Panel value={item?.slug || ''} key={item.id}>
-            <CategoryContent category={item} />
-          </Panel>
-        ))}
-      </div>
+  if (loading) return null;
+  return (
+    <Tabs defaultValue={categories?.[0]?.id?.toString()}>
+      <CategoryContent listCategory={categories} />
     </Tabs>
-  ) : (
-    <></>
   );
 };
 

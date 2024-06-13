@@ -1,121 +1,134 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap');
 
 :root body {
+  line-height: 1.5;
+  font-weight: 400;
 
-    line-height: 1.5;
-    font-weight: 400;
-
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 a {
-    text-decoration: none;
+  text-decoration: none;
 }
 
 .hover_table:hover {
-    background: rgba(255, 226, 236, 0.5);
+  background: rgba(255, 226, 236, 0.5);
 }
 
 .voucher_form_select input {
-    padding-right: 0 !important;
-    padding-left: 24px;
-    padding-top: 24px;
+  padding-right: 0 !important;
+  padding-left: 24px;
+  padding-top: 24px;
 }
 
 .date_input {
-    height: 68px;
-    border-radius: 5px;
-    background: #FFE7EF;
-    padding: 8px 16px;
-    width: 180px;
+  height: 68px;
+  border-radius: 5px;
+  background: #ffe7ef;
+  padding: 8px 16px;
+  width: 180px;
 }
 
 .date_input input {
-    border: none;
-    background: #FFE7EF;
-
+  border: none;
+  background: #ffe7ef;
 }
 
 input[type='date']::-webkit-calendar-picker-indicator {
-    background:
-        transparent;
-    bottom: 0;
-    color: transparent;
-    cursor: pointer;
-    height: auto;
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: auto;
+  background: transparent;
+  bottom: 0;
+  color: transparent;
+  cursor: pointer;
+  height: auto;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: auto;
 }
 
-
 .mb-15 {
-    margin-bottom: 15px;
+  margin-bottom: 15px;
 }
 
 .voucher_form input[type='text'] {
-    border: 1px solid #B82C67 !important;
+  border: 1px solid #b82c67 !important;
 }
 
 td {
-    text-align: center;
+  text-align: center;
 }
 
 .attribute_input {
-    border-top: none;
-    border-right: none;
-    border-left: none;
-    border-bottom: 1px solid #ccc;
-    width: 100%;
+  border-top: none;
+  border-right: none;
+  border-left: none;
+  border-bottom: 1px solid #ccc;
+  width: 100%;
 }
 
 .attribute input[type='text']:focus {
-    outline: none;
+  outline: none;
 }
 
 .badge {
-    width: 314px;
+  width: 314px;
 }
 
 .badge_child {
-    background: #FFE7EF;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 14px;
-    height: 36px;
-    border-radius: 5px;
-    margin-top: 8px;
-
+  background: #ffe7ef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 14px;
+  height: 36px;
+  border-radius: 5px;
+  margin-top: 8px;
 }
 
 .image_preview {
-    background-repeat: no-repeat !important;
-    background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
 }
 
 .custom_select {
-   
-    padding: 0rem 0.5rem ;
-    margin-top: 0.5rem;
-    border: none;
-    border-radius: 5px;
-    -moz-appearance:none !important;
-    -webkit-appearance: none !important; 
-    appearance: none !important;
+  padding: 0rem 0.5rem;
+  margin-top: 0.5rem;
+  border: none;
+  border-radius: 5px;
+  -moz-appearance: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
 }
-.custom_select:focus{
-    outline: none;
+.custom_select:focus {
+  outline: none;
 }
-.category-form{
-    display: grid;
-  
+.category-form {
+  display: grid;
+
   grid-gap: 20px;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #e7e6e6;
+  border-bottom-color: #ffe7ef;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }

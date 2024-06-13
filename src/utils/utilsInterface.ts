@@ -16,7 +16,23 @@ export interface productType {
   subcategory: { name: string };
   created_time: string;
   slug?: string;
-  subsubcategory?: number;
+  subsubcategory?: {
+    id: string;
+    name: string;
+  };
+  category?: {
+    id: string;
+    name: string;
+  };
+  sub_subcategory?: {
+    id: string;
+    name: string;
+  };
+  thumbnail?: {
+    url: string;
+    id: number;
+    name: string;
+  };
 }
 
 export type CategoryType = {

@@ -1,49 +1,49 @@
 import {
+  ActionIcon,
   Box,
   Button,
   Container,
   Grid,
   Group,
-  Stack,
-  Tabs,
-  TextInput,
-  Title,
-  ActionIcon,
   Modal,
   Paper,
+  Stack,
+  Tabs,
   Text,
+  TextInput,
+  Title,
 } from '@mantine/core';
-import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
-import React, { useEffect, useState } from 'react';
 import { notifications } from '@mantine/notifications';
+import React, { useState } from 'react';
+import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
 // import { DateInput } from '@mantine/dates';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
+import { Dropzone, FileWithPath } from '@mantine/dropzone';
+import { useForm } from '@mantine/form';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
-import { useForm } from '@mantine/form';
-import { Dropzone, FileWithPath } from '@mantine/dropzone';
+import Underline from '@tiptap/extension-underline';
+import StarterKit from '@tiptap/starter-kit';
 // import { FileWithPath, Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { storage } from '../../utils/firebaseConfig';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-  uploadBytesResumable,
-} from 'firebase/storage';
-import { formatDay } from '../../utils/format';
-import TextEditor from '../common/TextEditor';
-import { useEditor } from '@tiptap/react';
-import useSWR from 'swr';
-import ImagePreview from '../common/ImagePreview';
-import CustomSelect from '../common/CustomSelect';
-import AttributeCards from '../common/AttributeCards';
-import { GetColorName } from 'hex-color-to-color-name';
-import * as _ from 'lodash';
-import { PUT } from '../../utils/fetch';
 import { DateInput } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
+import { useEditor } from '@tiptap/react';
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+  uploadBytesResumable,
+} from 'firebase/storage';
+import { GetColorName } from 'hex-color-to-color-name';
+import * as _ from 'lodash';
+import useSWR from 'swr';
+import { PUT } from '../../utils/fetch';
+import { storage } from '../../utils/firebaseConfig';
+import { formatDay } from '../../utils/format';
+import AttributeCards from '../common/AttributeCards';
+import CustomSelect from '../common/CustomSelect';
+import ImagePreview from '../common/ImagePreview';
+import TextEditor from '../common/TextEditor';
 interface productEditFormProps {
   id: number;
   onSuccess: () => void;
@@ -228,53 +228,6 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
       : data?.note?.Utilisation,
   });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/category/create', { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data) =>
-        setState((p) => ({
-          ...p,
-          categories: data.map((item: { id: number; name: string }) => ({
-            value: item.id,
-            label: item.name,
-          })),
-        })),
-      );
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  // console.log(data);
-
-  useEffect(() => {
-    if (data?.color) {
-      setState((p) => ({ ...p, colorAttribute: Object.values(data?.color) }));
-    }
-    if (data?.capacity) {
-      setState((p) => ({
-        ...p,
-        capacityAttribute: Object.values(data?.capacity),
-      }));
-    }
-    if (data?.packaging) {
-      setState((p) => ({
-        ...p,
-        packagingAttribute: Object.values(data?.packaging),
-      }));
-    }
-    if (data?.url_image) {
-      setState((p) => ({ ...p, imgeUrl: data?.url_image }));
-    }
-  }, [data?.url_image, data?.color, data?.capacity, data?.packaging]);
-  useEffect(() => {
-    if (data?.album) {
-      setAlbumsImage(data?.album);
-    }
-    if (subsubCategory.id) {
-      form.setFieldValue('subsubcategory_id', subsubCategory.id);
-    }
-  }, [data?.album, subsubCategory]);
   if (!data) return null;
 
   if (isLoading) return 'loading';
