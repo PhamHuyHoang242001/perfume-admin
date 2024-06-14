@@ -330,7 +330,7 @@ const Delivery = () => {
               marginRight: '0.75rem',
             }}
           >
-            Ajouter
+            Add
           </span>
           <img src={'/add.svg'} alt={'icon'} />
         </UnstyledButton>
