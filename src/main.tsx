@@ -29,7 +29,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   >
     <Notifications position="top-right" />
 
-    <DatesProvider settings={{ locale: 'fr' }}>
+    <DatesProvider settings={{ locale: 'en' }}>
       <App />
     </DatesProvider>
   </MantineProvider>,
