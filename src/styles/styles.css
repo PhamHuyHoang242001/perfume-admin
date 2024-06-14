@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
 :root body {
   line-height: 1.5;
   font-weight: 400;
@@ -103,9 +104,11 @@ td {
   -webkit-appearance: none !important;
   appearance: none !important;
 }
+
 .custom_select:focus {
   outline: none;
 }
+
 .category-form {
   display: grid;
 
@@ -127,7 +130,22 @@ td {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
+}
+
+.header_list_voucher {
+  .mantine-bkyer9 {
+    margin-top: -12px;
+    padding: 0px;
+  }
+
+  .mantine-nilrrg {
+    margin-top: -12px;
+    padding: 0px;
+  }
+
+
 }
