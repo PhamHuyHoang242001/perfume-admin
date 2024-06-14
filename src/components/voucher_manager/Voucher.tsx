@@ -12,6 +12,9 @@ import {
   rem,
   Title,
   Text,
+  CopyButton,
+  Tooltip,
+  ActionIcon,
   TextInput,
 } from '@mantine/core';
 
@@ -20,16 +23,19 @@ import { useEffect, useState } from 'react';
 import { DateInput } from '@mantine/dates';
 import VoucherCreateForm from '../form/VoucherCreateForm';
 import { useDisclosure } from '@mantine/hooks';
+import useSWR, { mutate } from 'swr';
 import { voucherType } from '../../utils/utilsInterface.ts';
 import { formatDay } from '../../utils/format.ts';
-import { DELETE, GET } from '../../utils/fetch.ts';
+import { DELETE, POST } from '../../utils/fetch.ts';
+import { apiRoute } from '../../utils/apiRoute.ts';
 import VoucherEditForm from '../form/VoucherEditForm.tsx';
+import { IconCheck, IconCopy, IconRefresh } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 
 const statusData = [
-  { value: 'all', label: 'All' },
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
+  { value: 'expirer', label: 'Expirer' },
 ];
 const useStyles = createStyles((theme) => ({
   header: {
@@ -75,9 +81,8 @@ const Voucher = () => {
     deleteModal: false,
     deleteId: 0,
     start_date: '',
-    searchText: '',
     end_date: '',
-    status: 'all',
+    reversed: false,
   });
   const {
     scrolled,
@@ -86,53 +91,42 @@ const Voucher = () => {
     deleteId,
     voucherID,
     editModal,
-    searchText,
     start_date,
     end_date,
-    status,
+    reversed,
   } = state;
   const { classes, cx } = useStyles();
   const [opened, { open, close }] = useDisclosure(false);
-  console.log(start_date);
-
   async function getVoucher() {
-    const res = await GET(
-      `/api/admin/voucher?${
-        status === 'active'
-          ? 'active=true'
-          : status === 'inactive'
-          ? 'active=false'
-          : ''
-      }${searchText ? '&search=' + searchText : ''}${
-        start_date
-          ? '&start_date=' + dayjs(start_date).format('YYYY-MM-DD')
-          : ''
-      }${end_date ? '&end_date=' + dayjs(end_date).format('YYYY-MM-DD') : ''}`,
-    );
-    setState((p) => ({ ...p, voucherData: res?.data?.results }));
+    return await fetch('/api/voucher/all')
+      .then((res) => res.json())
+      .catch((e) => alert(e));
+  }
+  const { data } = useSWR('get-voucher', getVoucher);
+  async function refreshVoucherCode(id: number) {
+    await POST(`/api/voucher/code/${id}`).then(() => mutate('get-voucher'));
   }
 
+  const statusFilter = [{ value: 'all', label: 'Totalité' }, ...statusData];
+
   useEffect(() => {
-    getVoucher();
-  }, [status, searchText, start_date, end_date]);
+    setState((p) => ({ ...p, voucherData: data }));
+  }, [data]);
 
   return (
     <div style={{ padding: '32px 5.44rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Title order={2} c={'#B82C67'}>
-          Voucher management
+          Gestionnaire de bons
         </Title>
         <Button
           rightIcon={<img src="/plus.svg" alt="icon" />}
           bg={'#B82C67'}
-          w={'218px'}
+          w={'10.6875rem'}
           h={'2.625rem'}
           onClick={open}
-          sx={{
-            borderRadius: '10px',
-          }}
         >
-          Add new voucher
+          Créer un bon
         </Button>
       </div>
       <br />
@@ -140,21 +134,12 @@ const Voucher = () => {
       <Box mt={32} sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Group spacing={'xl'}>
           <Select
-            // className="header_list_voucher"
-            data={statusData}
+            data={statusFilter}
             rightSection={<img alt="icon" src="/down_arrow.svg" />}
             bg={'#FFE7EF'}
             variant={'unstyled'}
             label={
-              <span
-                style={{
-                  fontSize: '12px',
-                  color: '#858585',
-                  display: 'flex',
-                }}
-              >
-                Status
-              </span>
+              <span style={{ fontSize: '12px', color: '#858585' }}>Statut</span>
             }
             h={58}
             w={'16.1875rem'}
@@ -162,19 +147,26 @@ const Voucher = () => {
               borderRadius: '5px',
               paddingLeft: '10px',
             }}
-            value={status}
             onChange={(e: string) => {
-              setState((p) => ({ ...p, status: e }));
+              if (e === 'all') {
+                setState((p) => ({ ...p, voucherData: data }));
+              } else {
+                setState((p) => ({
+                  ...p,
+                  voucherData: data.filter(
+                    (item: voucherType) =>
+                      item.status.trim().toLowerCase() === e.toLowerCase(),
+                  ),
+                }));
+              }
             }}
             allowDeselect
           />
 
           <DateInput
-            // className="header_list_voucher"
-            clearable
             label={
               <span style={{ fontSize: '12px', color: '#858585' }}>
-                Start date
+                Date de début
               </span>
             }
             h={58}
@@ -185,20 +177,12 @@ const Voucher = () => {
             variant="unstyled"
             bg={'#FFE7EF'}
             sx={{ borderRadius: '5px', paddingLeft: '8px' }}
-            onChange={(e) =>
-              setState((p) => ({
-                ...p,
-                start_date: e !== null ? String(e) : '',
-              }))
-            }
-            minDate={new Date()}
-            maxDate={end_date ? new Date(end_date) : undefined}
+            onChange={(e) => setState((p) => ({ ...p, start_date: String(e) }))}
           />
           <DateInput
-            clearable
             label={
               <span style={{ fontSize: '12px', color: '#858585' }}>
-                End date
+                Date de fin
               </span>
             }
             h={58}
@@ -209,25 +193,31 @@ const Voucher = () => {
             variant="unstyled"
             bg={'#FFE7EF'}
             sx={{ borderRadius: '5px', paddingLeft: '8px' }}
-            onChange={(e) =>
-              setState((p) => ({ ...p, end_date: e !== null ? String(e) : '' }))
-            }
-            minDate={start_date ? new Date(start_date) : new Date()}
+            onChange={(e) => setState((p) => ({ ...p, end_date: String(e) }))}
           />
-          {/* <Button
+          <Button
             bg={'#B82C67'}
             w={'7.5rem'}
             h={58}
-            onClick={() => {
-              setState((p) => ({ ...p, check: true }));
-            }}
+            onClick={() =>
+              setState((p) => ({
+                ...p,
+                voucherData: data.filter(
+                  (item: voucherType) =>
+                    dayjs(item.start_date as Date).format('l') ===
+                      dayjs(start_date).format('l') ||
+                    dayjs(item.end_date as Date).format('l') ===
+                      dayjs(end_date).format('l'),
+                ),
+              }))
+            }
           >
-            Confirm
-          </Button> */}
+            Afficher
+          </Button>
         </Group>
         <TextInput
           icon={<img src="/search.svg" alt="icon" />}
-          placeholder="Search"
+          placeholder="Rechercher un bon de réduction"
           w={327}
           h={58}
           variant="unstyled"
@@ -235,7 +225,12 @@ const Voucher = () => {
           onChange={function (e) {
             setState((p) => ({
               ...p,
-              searchText: e.target.value,
+              voucherData: data.filter((item: voucherType) =>
+                item.name
+                  .trim()
+                  .toLowerCase()
+                  .includes(e.target.value.trim().toLowerCase()),
+              ),
             }));
           }}
         />
@@ -243,7 +238,7 @@ const Voucher = () => {
 
       <br />
       <Title c={'#B82C67'} order={3}>
-        Discount voucher ({voucherData?.length})
+        Bons de réduction ({data?.length})
       </Title>
       <ScrollArea
         h={500}
@@ -264,22 +259,93 @@ const Voucher = () => {
                   backgroundColor: '#FFE2EC',
                   height: '60px',
                   fontWeight: 600,
-                  fontSize: '14px',
                 }}
               >
                 <td>
-                  Name of <br />
-                  voucher
+                  <UnstyledButton
+                    sx={{ display: 'flex' }}
+                    onClick={() =>
+                      setState((p) => ({
+                        ...p,
+                        reversed: !reversed,
+                        voucherData: [...voucherData].sort((a, b) => {
+                          if (reversed) {
+                            return b['name'].localeCompare(a['name']);
+                          }
+                          return a['name'].localeCompare(b['name']);
+                        }),
+                      }))
+                    }
+                  >
+                    <span style={{ color: '#b82c67', fontWeight: '600' }}>
+                      Nom du bon <br />
+                      de
+                      <br /> réduction
+                    </span>
+                    <img src={'/sort.svg'} alt={'icon'} />
+                  </UnstyledButton>
                 </td>
-                <td>Promo code</td>
-                <td>Type of discount</td>
-                <td>Quantity</td>
-                <td>Apply to</td>
-                <td>Start date</td>
-                <td>End date</td>
-                <td>Status</td>
-                {/* <td>Pendre le code</td> */}
-                {/* <td></td> */}
+                <td>Code de réduction</td>
+                <td>Bon de réduction</td>
+                <td>Quantité de codes</td>
+                <td>Bon de réduction s'applique à</td>
+                <td>
+                  <UnstyledButton
+                    onClick={() =>
+                      setState((p) => ({
+                        ...p,
+                        reversed: !reversed,
+                        voucherData: [...voucherData].sort((a, b) => {
+                          if (reversed) {
+                            return (
+                              Date.parse(b['start_date']) -
+                              Date.parse(a['start_date'])
+                            );
+                          }
+                          return (
+                            Date.parse(a['start_date']) -
+                            Date.parse(b['start_date'])
+                          );
+                        }),
+                      }))
+                    }
+                  >
+                    <span style={{ color: '#b82c67', fontWeight: '600' }}>
+                      Date de début
+                    </span>
+                    <img src={'/sort.svg'} alt={'icon'} />
+                  </UnstyledButton>
+                </td>
+                <td>
+                  <UnstyledButton
+                    onClick={() =>
+                      setState((p) => ({
+                        ...p,
+                        reversed: !reversed,
+                        voucherData: [...voucherData].sort((a, b) => {
+                          if (reversed) {
+                            return (
+                              Date.parse(b['end_date']) -
+                              Date.parse(a['end_date'])
+                            );
+                          }
+                          return (
+                            Date.parse(a['end_date']) -
+                            Date.parse(b['end_date'])
+                          );
+                        }),
+                      }))
+                    }
+                  >
+                    <span style={{ color: '#b82c67', fontWeight: '600' }}>
+                      Date de fin
+                    </span>
+                    <img src={'/sort.svg'} alt={'icon'} />
+                  </UnstyledButton>
+                </td>
+                <td>Statut</td>
+                <td>Pendre le code</td>
+                <td></td>
                 <td></td>
               </tr>
             </thead>
@@ -292,38 +358,57 @@ const Voucher = () => {
                     className={'hover_table'}
                   >
                     <td>{item.name}</td>
-                    <td>{item.code}</td>
+                    <td>{item.code_promo}</td>
                     <td>
-                      {String(item.discount_type) === '3'
-                        ? ` Valuer - ${item.discount}$`
-                        : `% Discount - ${item.discount}%`}
+                      {item.discount_type === 'value'
+                        ? `Valuer-${item.discount}€`
+                        : `%Rabias-${item.discount}%`}
                     </td>
                     <td>
-                      {0}/{0}
+                      {item.available}/{item.total}
                     </td>
-                    <td>{'All'}</td>
+                    <td>{item.product || 'All'}</td>
                     <td>{formatDay(item.start_date)}</td>
                     <td>{formatDay(item.end_date)}</td>
                     <td>
-                      <span
-                        style={{
-                          background:
-                            item.active === false ? '#FFC978' : '#87FF74',
-                          textAlign: 'center',
-                          textTransform: 'capitalize',
-                          padding: '0.1875rem 0.75rem',
-                          border: '1px solid #333',
-                          borderRadius: '5px',
-                          fontWeight: 500,
-                          fontSize: '0.875rem',
-                          height: '30px',
-                          width: '97px',
-                        }}
-                      >
-                        {item.active === true ? 'Active' : 'Inactive'}
-                      </span>
+                      {item.available === 0 ? (
+                        <span
+                          style={{
+                            background: '#FF9090',
+                            textAlign: 'center',
+                            textTransform: 'capitalize',
+                            padding: '0.1875rem 0.75rem',
+                            border: '1px solid #333',
+                            borderRadius: '5px',
+                            fontWeight: 500,
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          Expirer
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            background:
+                              item.status === 'inactive'
+                                ? '#FFC978'
+                                : item.status === 'active'
+                                ? '#87FF74'
+                                : '#FF9090',
+                            textAlign: 'center',
+                            textTransform: 'capitalize',
+                            padding: '0.1875rem 0.75rem',
+                            border: '1px solid #333',
+                            borderRadius: '5px',
+                            fontWeight: 500,
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {item.status === 'expire' ? 'Expirer' : item.status}
+                        </span>
+                      )}
                     </td>
-                    {/* <td>
+                    <td>
                       {item.last_code ? (
                         <div
                           style={{
@@ -388,13 +473,9 @@ const Voucher = () => {
                           <img src="/plus_round.svg" alt="icon" />
                         </UnstyledButton>
                       )}
-                    </td> */}
-                    {/* <td>
-                      
-                    </td> */}
+                    </td>
                     <td>
                       <UnstyledButton
-                        style={{ marginRight: '16px' }}
                         onClick={function () {
                           setState((p) => ({
                             ...p,
@@ -405,6 +486,8 @@ const Voucher = () => {
                       >
                         <img src="/pen.svg" alt="icon" />
                       </UnstyledButton>
+                    </td>
+                    <td>
                       <UnstyledButton
                         onClick={() =>
                           setState((p) => ({
@@ -433,24 +516,18 @@ const Voucher = () => {
         <Modal.Content>
           <Modal.Header>
             <Modal.Title>
-              <Title c={'#B82C67'} size={'24px'} mt={32} ml={64}>
-                Add new voucher{' '}
+              <Title c={'#B82C67'} order={1} mt={32} ml={64}>
+                Créer un bon de réduction
               </Title>
             </Modal.Title>
             <Modal.CloseButton>
-              <img
-                src={'/close.svg'}
-                alt={'icon'}
-                height={'18px'}
-                width={'18px'}
-              />
+              <img src={'/close.svg'} alt={'icon'} />
             </Modal.CloseButton>
           </Modal.Header>
           <Modal.Body>
             <VoucherCreateForm
               onSuccess={() => {
-                getVoucher();
-                close();
+                mutate('get-voucher').then(() => close());
               }}
             />
           </Modal.Body>
@@ -467,8 +544,8 @@ const Voucher = () => {
         <Modal.Content>
           <Modal.Header>
             <Modal.Title>
-              <Title c={'#B82C67'} size={'24px'} mt={32} ml={64}>
-                Edit voucher
+              <Title c={'#B82C67'} order={1} mt={32} ml={64}>
+                Modifier les coupons
               </Title>
             </Modal.Title>
             <Modal.CloseButton>
@@ -478,8 +555,9 @@ const Voucher = () => {
           <Modal.Body>
             <VoucherEditForm
               onSuccess={() => {
-                getVoucher();
-                setState((p) => ({ ...p, editModal: false }));
+                mutate('get-voucher').then(() =>
+                  setState((p) => ({ ...p, editModal: false })),
+                );
               }}
               id={voucherID}
             />
@@ -496,26 +574,32 @@ const Voucher = () => {
       >
         <Paper pt={'1rem'}>
           <Text align={'center'} sx={{ fontSize: '16px', fontWeight: 600 }}>
-            Do you really want to delete this voucher?
+            Vous voulez absolument supprimer ce produit?
           </Text>
           <Group sx={{ float: 'right' }} my={32}>
             <Button
               variant={'subtle'}
               onClick={() => setState((p) => ({ ...p, deleteModal: false }))}
             >
-              <span style={{ color: '#333' }}>No</span>
+              <span style={{ color: '#333' }}>Anunuler</span>
             </Button>
             <Button
               onClick={async function () {
-                await DELETE(`/api/admin/voucher/delete/?ids=${deleteId}`);
-                setState((p) => ({
-                  ...p,
-                  deleteModal: false,
-                })),
-                  getVoucher();
+                await DELETE(`${apiRoute.delete_voucher}/${deleteId}`)
+                  .then(() =>
+                    setState((p) => ({
+                      ...p,
+                      voucherData: [...voucherData].filter(
+                        (item: voucherType) => item.id !== deleteId,
+                      ),
+                      deleteModal: false,
+                    })),
+                  )
+                  .then(() => mutate('get-voucher'))
+                  .catch((e) => alert(e));
               }}
             >
-              Yes
+              Effacer
             </Button>
           </Group>
         </Paper>
