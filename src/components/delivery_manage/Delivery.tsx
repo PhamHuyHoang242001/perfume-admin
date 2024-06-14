@@ -86,8 +86,8 @@ const Delivery = () => {
   }, [data]);
   return (
     <div>
-      <Title c="#B82C67" order={1} mb={4}>
-        Frais de port
+      <Title c="#B82C67" order={2} mb={32} mt={16} size={24} weight={700}>
+        Delivery cost
       </Title>
       <div style={{ textAlign: 'center' }}>
         <ScrollArea
@@ -108,14 +108,15 @@ const Delivery = () => {
                     backgroundColor: '#FFE2EC',
                     height: '60px',
                     fontWeight: 600,
+                    fontSize: '14px',
                   }}
                 >
-                  <td>Taper</td>
-                  <td>Poids mini (g) *</td>
-                  <td>Poids maximal (g) *</td>
-                  <td>Frais de port (€) *</td>
-                  <td>Expédition vers les pays</td>
-                  <td>Date de création</td>
+                  <td>Number</td>
+                  <td>Minium weight (g)</td>
+                  <td>Maximum weight (g)</td>
+                  <td>Delivery cost ($)</td>
+                  <td>Date of creation</td>
+                  <td></td>
                   <td></td>
                 </tr>
               </thead>
@@ -229,7 +230,7 @@ const Delivery = () => {
                                   cost: costRef.current?.value,
                                   country: countryValue,
                                 },
-                              ).then((res) => res.json());
+                              );
                               if (res) {
                                 await mutate('get-delivery');
 
@@ -253,7 +254,7 @@ const Delivery = () => {
                                         cost: costRef.current?.value,
                                         country: countryValue || item.country,
                                       },
-                                    ).then((res) => res.json());
+                                    );
                                     if (res) {
                                       await mutate('get-delivery');
                                     }
@@ -284,8 +285,8 @@ const Delivery = () => {
                                   onClick={async () => {
                                     const res = await DELETE(
                                       `/api/delivery-cost/detail/${item.id}`,
-                                    ).then((res) => res.json());
-                                    if (res.message === 'delete success') {
+                                    );
+                                    if (res?.message === 'delete success') {
                                       await mutate('get-delivery');
                                     }
                                   }}
