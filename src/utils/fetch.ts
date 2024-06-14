@@ -99,3 +99,6 @@ export async function PUT(url: string, data: object) {
 export async function DELETE(url: string) {
   return await instance.delete(url);
 }
+export async function PATCH(url: string, data: object) {
+  return await instance.patch(url, data);
+}
