@@ -9,6 +9,7 @@ export interface productType {
   price: number;
   weight: number;
   amount: number;
+  publish_date: string;
   status: string;
   url_image?: string;
   evaluate?: string;
@@ -34,12 +35,6 @@ export interface productType {
   };
 }
 
-type CategoryItem = {
-  id?: number;
-  name?: string;
-  image: string;
-};
-
 export type CategoryType = {
   id: number | string;
   name?: string;
@@ -50,34 +45,19 @@ export type CategoryType = {
   note?: string;
   created_time?: string;
   slug?: string;
-  subcategories?: {
-    id: number;
-    name: string;
-    sub_subcategories?: CategoryItem[];
-  }[];
 };
 export interface voucherType {
   id?: number;
   name: string;
-  available?: number;
-  code_promo?: string;
-  category_id: number;
-  subcategory_id: number;
+  code?: string;
   discount_type: string;
-  total: number;
+  // total: number;
   discount: number;
   start_date: string | DateValue | any;
   end_date: string | DateValue | any;
   active: boolean;
   description: string;
-  discount_target: string;
-  status: string;
-  product_id: number;
-  product?: string;
-  last_code?: string;
-  category?: number;
-  subcategory?: number;
-  sub_subcategory_id?: number;
+  // discount_target: string;
 }
 
 export interface IProductForm {
@@ -85,9 +65,10 @@ export interface IProductForm {
   weight: number;
   status: string;
   available: boolean;
+  publish_date: string;
   price: number;
-  current_price: number;
-  sub_subcategory_id?: number | null;
+  discount_price: number;
+  subsubcategory_id: number;
   url_image: string;
   image: File;
   note: {
@@ -96,8 +77,8 @@ export interface IProductForm {
     Description: string;
     Utilisation: string;
   };
-  category_id: number | null;
-  subcategory_id?: number | null;
+  category_id: number;
+  subcategory_id: number;
   amount: number;
   discount_start_date: string | DateValue;
   discount_end_date: string | Date;
@@ -113,7 +94,7 @@ export interface IProductForm {
     name: string;
     id: number;
   };
-  subsubcategory?: number | null;
+  subsubcategory?: number;
   image_ids?: number[];
 }
 export interface IAttribute {
