@@ -5,170 +5,159 @@ import {
   Container,
   Grid,
   Group,
-  Modal,
-  Paper,
+  NumberInput,
+  Select,
   Stack,
   Tabs,
-  Text,
   TextInput,
   Title,
 } from '@mantine/core';
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import { useForm, yupResolver } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import React, { useState } from 'react';
-import { IAttribute, IProductForm, subsub } from '../../utils/utilsInterface';
-// import { DateInput } from '@mantine/dates';
-import { Dropzone, FileWithPath } from '@mantine/dropzone';
-import { useForm } from '@mantine/form';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
-import StarterKit from '@tiptap/starter-kit';
-// import { FileWithPath, Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { DateInput } from '@mantine/dates';
-import { useDisclosure } from '@mantine/hooks';
 import { useEditor } from '@tiptap/react';
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-  uploadBytesResumable,
-} from 'firebase/storage';
+import StarterKit from '@tiptap/starter-kit';
 import { GetColorName } from 'hex-color-to-color-name';
-import * as _ from 'lodash';
-import useSWR from 'swr';
-import { PUT } from '../../utils/fetch';
-import { storage } from '../../utils/firebaseConfig';
-import { formatDay } from '../../utils/format';
+import { useEffect, useState } from 'react';
+import * as yup from 'yup';
+import { apiRoute } from '../../utils/apiRoute';
+import { GET, POST, instance } from '../../utils/fetch';
+import {
+  CategoryType,
+  IAttribute,
+  IProductForm,
+} from '../../utils/utilsInterface';
 import AttributeCards from '../common/AttributeCards';
-import CustomSelect from '../common/CustomSelect';
 import ImagePreview from '../common/ImagePreview';
 import TextEditor from '../common/TextEditor';
-interface productEditFormProps {
-  id: number;
+
+type ProductFormProps = {
+  listCategory: CategoryType[];
   onSuccess: () => void;
-}
-const statusData = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'stockout', label: 'Stockout' },
-];
-const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
-  const { data, isLoading } = useSWR<IProductForm>(
-    `/api/product/${id}`,
-    getDetail,
-  );
+  id: number;
+};
+
+const schema = yup.object().shape({
+  name: yup.string().required('Name of product is required'),
+  price: yup
+    .string()
+    .min(1, 'Price must be greater than 0 or equal to 1')
+    .required('Price is required')
+    .test({
+      name: 'greaterThanZero',
+      message: 'Price must be greater than 0',
+      test: function (value) {
+        const priceNumber = parseFloat(value);
+        return !isNaN(priceNumber) && priceNumber > 0;
+      },
+    })
+    .test({
+      name: 'decimalPlaces',
+      exclusive: false,
+      message: 'Price must have at most 2 decimal places',
+      test: function (currentPrice) {
+        if (!currentPrice) {
+          return true; // Skip validation if value is missing
+        }
+        const decimalPlaces =
+          currentPrice.toString().split('.')[2]?.length || 0;
+        return decimalPlaces <= 2;
+      },
+    })
+    .typeError('Invalid number'),
+  current_price: yup.string().when('price', (_price, schema) => {
+    return schema
+      .test({
+        name: 'currentPriceLessThanPrice',
+        exclusive: false,
+        message: 'Sale price must be less than price',
+        test: function (currentPrice) {
+          const { parent } = this;
+          const priceValue = parent.price;
+          if (!currentPrice || !priceValue) {
+            return true; // Skip validation if either value is missing
+          }
+          return parseFloat(currentPrice) < parseFloat(priceValue);
+        },
+      })
+      .test({
+        name: 'decimalPlaces',
+        exclusive: false,
+        message: 'Sale price must have at most 2 decimal places',
+        test: function (currentPrice) {
+          if (!currentPrice) {
+            return true; // Skip validation if value is missing
+          }
+          const decimalPlaces =
+            currentPrice.toString().split('.')[2]?.length || 0;
+
+          return decimalPlaces <= 2;
+        },
+      })
+      .typeError('Invalid number')
+      .max(999999.99, 'Sale price must be less than 999999.99');
+  }),
+  mass: yup.string().required('Mass is required'),
+  quantity: yup.string().required('Quantity is required'),
+  image: yup.mixed().required('Image is required'),
+});
+
+const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
   const [state, setState] = useState({
-    subCategory: [],
-    categories: [],
-    imgeUrl: '',
-    albums: [] as FileWithPath[],
-    subsubCategory: {} as subsub,
+    subCategory: [] as any,
+    subsubCategory: [] as any,
+    categories: listCategory?.map((item) => ({
+      value: item.id,
+      label: item.name,
+      ...item,
+    })),
+    attributes: [],
+    url_image: '',
+    progress: 0,
+    isLoading: false,
     colorAttribute: [] as IAttribute[],
     capacityAttribute: [] as IAttribute[],
-    packagingAttribute: [] as IAttribute[],
-    deleteProperties: {} as IAttribute,
-    deleteType: '',
+    packageAttribute: [] as IAttribute[],
+    tabSelected: '1' as string,
+    messageError: '' as string,
+    createdDay: '',
   });
   const {
+    isLoading,
+    url_image,
     subCategory,
-    categories,
     subsubCategory,
+    categories,
     colorAttribute,
     capacityAttribute,
-    packagingAttribute,
-    imgeUrl,
-    deleteProperties,
-    deleteType,
+    packageAttribute,
+    tabSelected,
+    messageError,
+    createdDay,
   } = state;
-  async function getDetail() {
-    return await fetch(`/api/product/${id}`).then((res) => res.json());
-  }
-  const [opened, { open, close }] = useDisclosure(false);
 
-  const [albumsImage, setAlbumsImage] = useState<string[]>([]);
-  const pusblishDate = `${new Date(String(data?.publish_date)).getFullYear()}-${
-    new Date(String(data?.publish_date)).getMonth() + 1
-  }-${new Date(String(data?.publish_date)).getDate()}`;
-  const form = useForm<IProductForm>({
-    initialValues: data,
+  const form = useForm<IProductForm | any>({
+    validate: yupResolver(schema),
+    validateInputOnBlur: true,
+    initialValues: {
+      name: '',
+      status: 'Active',
+      price: '',
+      current_price: '',
+      url_image: '',
+      note: {
+        characteristics: '',
+        use: '',
+        description: '',
+        composition: '',
+      },
+      category_id: '',
+      quantity: 1,
+    },
   });
-
-  async function getSubCategory(id: string) {
-    const controller = new AbortController();
-    try {
-      await fetch(`/api/subcategory/list/${+id}`, { signal: controller.signal })
-        .then((res) => res.json())
-        .then((data) =>
-          setState((p) => ({
-            ...p,
-            subCategory: data?.map((item: { name: string; id: number }) => ({
-              value: item.id,
-              label: item.name,
-            })),
-          })),
-        );
-    } catch (e) {
-      controller.abort();
-      notifications.show({
-        title: 'Warning',
-        message: `${e}`,
-        color: 'red',
-      });
-    }
-  }
-  async function getSubSub(id: number) {
-    await fetch(`/api/subsubcategory/detail/${id}`)
-      .then((res) => res.json())
-      .then((data) => setState((p) => ({ ...p, subsubCategory: data })));
-  }
-  function removeEmpty(obj: object) {
-    return Object.fromEntries(
-      Object.entries(obj).filter(([_, v]) => v !== null),
-    );
-  }
-  async function editProduct(v: IProductForm) {
-    const putData = _.omit(v, [
-      'slug',
-      'subcategory',
-      'description',
-      'image',
-      'evaluate',
-      'subsubcategory',
-      'real_price',
-      'created_time',
-      'modified_time',
-      'id',
-      'album',
-      'category',
-      'available',
-      'color',
-      'capacity',
-      'packaging',
-      'publish_date',
-    ]);
-    console.log(putData);
-    const res = await PUT(
-      `/api/product/detail/${id}`,
-      removeEmpty(
-        Object.assign(putData, {
-          album: albumsImage,
-          color: colorAttribute,
-          packaging: packagingAttribute,
-          capacity: capacityAttribute,
-          publish_date: pusblishDate,
-        }),
-      ),
-    )
-      .then((res) => res.json())
-      .catch((e) => alert(e));
-    if (res?.message !== 'Data is invalid') {
-      form.reset();
-      onSuccess();
-    } else {
-      alert(res?.message);
-    }
-  }
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -178,9 +167,8 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
     ],
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
-      form.setFieldValue('note.Caractéristiques', content);
+      form.setFieldValue('note.description', content);
     },
-    content: data?.note?.Caractéristiques,
   });
   const editor1 = useEditor({
     extensions: [
@@ -191,11 +179,8 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
     ],
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
-      form.setFieldValue('note.Composition', content);
+      form.setFieldValue('note.characteristics', content);
     },
-    content: data?.note?.Composition
-      ? data?.note?.Composition
-      : data?.note?.Composition,
   });
   const editor2 = useEditor({
     extensions: [
@@ -206,11 +191,8 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
     ],
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
-      form.setFieldValue('note.Description', content);
+      form.setFieldValue('note.use', content);
     },
-    content: data?.note?.Description
-      ? data?.note?.Description
-      : data?.note?.Description,
   });
   const editor3 = useEditor({
     extensions: [
@@ -221,194 +203,341 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
     ],
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
-      form.setFieldValue('note.Utilisation', content);
+      form.setFieldValue('note.composition', content);
     },
-    content: data?.note?.Utilisation
-      ? data?.note?.Utilisation
-      : data?.note?.Utilisation,
   });
 
-  if (!data) return null;
+  const getDetailProduct = async () => {
+    try {
+      const res = await GET(apiRoute.detail_product + id);
 
-  if (isLoading) return 'loading';
+      if (res.status === 200) {
+        form.setValues({
+          ...res.data,
+          category_id: res.data?.category?.id,
+          subcategory_id: res.data?.sub_subcategory?.id || '',
+          sub_subcategory_id: res.data?.sub_subcategory?.id || '',
+          current_price: res.data?.current_price || '',
+          image: res.data?.image?.[0]?.url,
+        });
+
+        const listSubCategoryCurr = listCategory
+          .find((item) => item.id === res.data?.category?.id)
+          ?.subcategories?.map((item) => ({
+            value: item.id,
+            label: item.name,
+            ...item,
+          }));
+
+        const listSubSubCate = listSubCategoryCurr
+          ?.find((item) => item.id === res.data?.subcategory?.id)
+          ?.sub_subcategories?.map((item) => ({
+            value: item.id,
+            label: item.name,
+            ...item,
+          }));
+
+        setState((prev) => ({
+          ...prev,
+          capacityAttribute: res?.data?.capacity,
+          packageAttribute: res?.data?.package,
+          colorAttribute: res?.data?.color,
+          url_image: res.data?.images?.[0]?.url,
+          subCategory: listSubCategoryCurr || [],
+          subsubCategory: listSubSubCate || [],
+        }));
+      }
+    } catch (error) {
+      console.log('error :>> ', error);
+    }
+  };
+
+  const handlePostImage = async (image: File) => {
+    try {
+      const formData = new FormData();
+
+      formData.append('name', image?.name);
+      formData.append('source ', 'product');
+      formData.append('file', image);
+
+      const resFile = await instance.post(apiRoute.upload_image, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return resFile.data;
+    } catch (error) {}
+  };
+
+  async function handleUpdateProduct(value: IProductForm) {
+    try {
+      if (isLoading) return;
+      setState((prev) => ({ ...prev, isLoading: true }));
+      if (value?.image) {
+        const resFile = await handlePostImage(value.image);
+
+        if (resFile.id) {
+          value.image_ids = [resFile.id];
+        }
+      }
+
+      if (!value?.subcategory_id) {
+        delete value.subcategory_id;
+      }
+
+      if (!value?.sub_subcategory_id) {
+        delete value.sub_subcategory_id;
+      }
+
+      const res = await POST(apiRoute.create_product, value);
+
+      if (res.status === 201) {
+        onSuccess();
+        notifications.show({
+          message: 'Add new product successfully',
+          color: 'green',
+        });
+      } else {
+        notifications.show({
+          message: 'Something went wrong',
+          color: 'red',
+        });
+      }
+      setState((prev) => ({ ...prev, isLoading: false }));
+    } catch (error) {
+      notifications.show({
+        message: `${error}`,
+        color: 'red',
+      });
+      setState((prev) => ({ ...prev, isLoading: true }));
+    }
+  }
+
+  const handleChangeTab = (tab: string) => {
+    const attributes = [colorAttribute, capacityAttribute, packageAttribute];
+    const selectedIndex = +tabSelected - 1; // Assuming tabSelected starts from 1
+
+    if (
+      selectedIndex >= 0 &&
+      selectedIndex < attributes.length &&
+      attributes[selectedIndex].length > 0
+    ) {
+      const isError = attributes[selectedIndex].some((item) => !item.name);
+      if (isError) {
+        setState((prev) => ({
+          ...prev,
+          messageError: `Please fill the attributes of the ${
+            tabSelected === '1'
+              ? 'color'
+              : tabSelected === '2'
+              ? 'capacity'
+              : 'package'
+          }`,
+        }));
+        return;
+      }
+    }
+
+    setState((prev) => ({ ...prev, tabSelected: tab }));
+  };
+
+  useEffect(() => {
+    if (id) getDetailProduct();
+  }, [id]);
+
   return (
     <div>
       <form
-        onSubmit={form.onSubmit((v) => editProduct(v))}
-        style={{ padding: '32px 64px' }}
+        onSubmit={form.onSubmit((v) => handleUpdateProduct(v))}
+        style={{ padding: '32px 64px', fontSize: 12 }}
       >
         <Stack spacing={'lg'}>
-          <Group spacing={'xl'}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 16,
+            }}
+          >
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Nom du produit</span>
+              <span style={{ color: '#707070' }}>
+                Name of product <span style={{ color: '#FF0000' }}>*</span>
+              </span>
               <TextInput
                 p={'0 10px'}
                 h={36}
                 variant={'unstyled'}
+                key="name"
                 width={313}
+                maxLength={100}
                 mt={'8px'}
-                defaultValue={data.name}
                 {...form.getInputProps('name')}
                 sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
               />
             </div>
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Date de création</span>
+              <span style={{ color: '#707070' }}>Creation date</span>
               <div className={'badge_child'}>
-                <p>{formatDay(data.publish_date)}</p>
-                <img
-                  src={'/calendar.svg'}
-                  alt={'icon'}
-                  width={30}
-                  height={30}
-                />
+                <p>{createdDay}</p>
               </div>
             </div>{' '}
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Statut</span>
-
-              <CustomSelect
-                width="19.5625rem"
-                height="2.25rem"
-                default={data?.status as string}
-                data={statusData}
-                selectBG={{
-                  color: '#FFE7EF',
-                  image: '/down_arrow.svg',
-                  posX: '18.5625rem',
-                  posY: '18px',
-                }}
-                onChange={function (
-                  e: React.ChangeEvent<HTMLSelectElement>,
-                ): void {
-                  form.setFieldValue('status', e.target.value);
-                }}
-              />
-            </div>
-          </Group>
-          <Group>
+              <span style={{ color: '#707070' }}>Status</span>
+              <div className={'badge_child'}>
+                <p>Active</p>
+              </div>
+            </div>{' '}
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 16,
+            }}
+          >
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Categories</span>
-
-              <CustomSelect
+              <span style={{ color: '#707070' }}>
+                Category <span style={{ color: '#FF0000' }}>*</span>
+              </span>
+              <Select
                 width="19.5625rem"
                 height="2.25rem"
-                default={data?.category?.name as string}
-                data={categories}
-                selectBG={{
-                  color: '#FFE7EF',
-                  image: '/down_arrow.svg',
-                  posX: '18.5625rem',
-                  posY: '18px',
+                data={categories as any}
+                variant="unstyled"
+                value={form.values?.category_id as any}
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  marginTop: 8,
+                  '.mantine-bkyer9': {
+                    fontSize: 12,
+                  },
                 }}
-                onChange={function (
-                  e: React.ChangeEvent<HTMLSelectElement>,
-                ): void {
-                  getSubCategory(e.target.value);
-                  form.setFieldValue('category_id', +e.target.value);
+                onChange={(v) => {
+                  form.setFieldValue('category_id', v as any);
+                  const newSubCate = listCategory.find(
+                    (item) => v && item?.id && +item.id === +v,
+                  );
+                  const convertList =
+                    newSubCate?.subcategories?.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                      ...item,
+                    })) || [];
+                  setState((prev) => ({
+                    ...prev,
+                    subCategory: convertList,
+                  }));
+                  form.values?.subcategory_id &&
+                    form.setFieldValue('subcategory_id', null);
+                  form.values?.sub_subcategory_id &&
+                    form.setFieldValue('sub_subcategory_id', null);
+                  subsubCategory &&
+                    setState((prev) => ({
+                      ...prev,
+                      subsubCategory: [],
+                    }));
                 }}
               />
             </div>{' '}
             <div className={'badge'}>
-              <span style={{ color: '#858585' }}>Sub-catégorie</span>
-              <CustomSelect
+              <span style={{ color: '#707070' }}>Sub-category</span>
+              <Select
                 width="19.5625rem"
                 height="2.25rem"
-                default={data?.subcategory?.name as string}
-                data={subCategory}
-                selectBG={{
-                  color: '#FFE7EF',
-                  image: '/down_arrow.svg',
-                  posX: '18.5625rem',
-                  posY: '18px',
+                data={subCategory as any}
+                value={form.values?.subcategory_id as any}
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  marginTop: 8,
+                  '.mantine-bkyer9': {
+                    fontSize: 12,
+                  },
                 }}
-                onChange={function (
-                  e: React.ChangeEvent<HTMLSelectElement>,
-                ): void {
-                  getSubSub(+e.target.value);
-                  form.setFieldValue('subcategory_id', +e.target.value);
+                onChange={(v) => {
+                  form.setFieldValue('subcategory_id', v as any);
+                  const newSubCate = subCategory.find(
+                    (item: any) => v && +item.value === +v,
+                  ) as any;
+                  form.values?.sub_subcategory_id &&
+                    form.setFieldValue('sub_subcategory_id', null);
+                  const convertList =
+                    newSubCate?.sub_subcategories?.map((item: any) => ({
+                      value: item.id,
+                      label: item.name,
+                    })) || [];
+                  setState((prev) => ({
+                    ...prev,
+                    subsubCategory: convertList,
+                  }));
                 }}
               />
-            </div>
-            <div className={'badge'} style={{ marginLeft: '1rem' }}>
-              <div className={'badge_child'} style={{ marginTop: '2rem' }}>
-                <p>
-                  {subsubCategory?.name
-                    ? subsubCategory?.name
-                    : data.subcategory?.name}
-                </p>
-              </div>
-            </div>
-          </Group>
-          <Title order={3} c={'#E7639A'} mt={18}>
-            Image du produit
-          </Title>
+            </div>{' '}
+            <div className={'badge'}>
+              <span style={{ color: '#707070' }}>Sub-sub-category</span>
+              <Select
+                width="19.5625rem"
+                height="2.25rem"
+                data={subsubCategory as any}
+                value={form.values?.sub_subcategory_id as any}
+                variant="unstyled"
+                rightSection={<img alt="icon" src="/down_arrow.svg" />}
+                bg={'#FFE7EF'}
+                sx={{
+                  borderRadius: 4,
+                  marginTop: 8,
+                  '.mantine-bkyer9': {
+                    fontSize: 12,
+                  },
+                }}
+                onChange={(v) => {
+                  form.setFieldValue('sub_subcategory_id', v as any);
+                }}
+              />
+            </div>{' '}
+          </div>
+
           <Group spacing={'xl'}>
             <div>
-              <h4 style={{ color: '#E7639A' }}>Grande</h4>
-              <ImagePreview
-                remove={false}
-                image={imgeUrl}
-                onReplace={(file) => {
-                  const deleteRef = ref(storage, data.url_image);
-                  deleteObject(deleteRef)
-                    .then(() => console.log('success'))
-                    .catch((e) => console.warn(e));
-                  const imageRef = ref(storage, `test_image/${Date.now()}`);
-                  uploadBytes(imageRef, file).then((snapshot) => {
-                    getDownloadURL(snapshot.ref)
-                      .then((url) => {
-                        setState((p) => ({ ...p, imgeUrl: url }));
-                        form.setFieldValue('url_image', url);
-                      })
-                      .catch((e) => console.warn(e));
-                  });
-                }}
-                imageWidth={174}
-                imageHeight={174}
-              />
-            </div>
-            <div style={{ marginLeft: '5rem' }}>
-              <h4 style={{ color: '#E7639A' }}>Album</h4>
-              <Group>
+              <h4 style={{ color: '#B82C67', fontSize: 16 }}>Product image</h4>
+              {url_image ? (
+                <>
+                  <ImagePreview
+                    imageWidth={174}
+                    imageHeight={174}
+                    remove={false}
+                    image={url_image}
+                    onReplace={(file) => {
+                      if (file) {
+                        setState((p) => ({
+                          ...p,
+                          url_image: URL.createObjectURL(file),
+                        }));
+                        form.setFieldValue('image', file);
+                      }
+                    }}
+                  />
+                </>
+              ) : (
                 <Dropzone
-                  multiple={false}
-                  disabled={albumsImage.length >= 6}
-                  onDrop={function (file) {
-                    const images = [];
-                    file.map((item) => {
-                      const storageRef = ref(
-                        storage,
-                        `test_image/${(Math.random() + 1)
-                          .toString(36)
-                          .substring(2)}`,
-                      );
-                      const uploadTask = uploadBytesResumable(storageRef, item);
-                      images.push(uploadTask);
-                      uploadTask.on(
-                        'state_changed',
-                        (snapshot) => {
-                          const prog = Math.round(
-                            (snapshot.bytesTransferred / snapshot.totalBytes) *
-                              100,
-                          );
-                          console.log(prog);
-                        },
-                        (error) => console.warn(error),
-                        async () => {
-                          await getDownloadURL(uploadTask.snapshot.ref).then(
-                            (downloadURLs) => {
-                              setAlbumsImage((p) => [...p, downloadURLs]);
-                              console.log('success upload', downloadURLs);
-                            },
-                          );
-                        },
-                      );
-                    });
+                  onDrop={(file) => {
+                    file?.[0] &&
+                      setState((p) => ({
+                        ...p,
+                        url_image: URL.createObjectURL(file?.[0]),
+                      }));
+                    form.setFieldValue('image', file?.[0]);
                   }}
                   w={174}
+                  multiple={false}
                   h={174}
                   pt={'50px'}
+                  accept={IMAGE_MIME_TYPE}
                 >
                   <div style={{ textAlign: 'center' }}>
                     <img
@@ -417,180 +546,112 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       height={32}
                       alt={'img'}
                     />
-                    <p style={{ fontSize: '13px' }}>Ajouter une photo</p>
+                    <p style={{ fontSize: '13px' }}>Add image</p>
                   </div>
                 </Dropzone>
-                <div
-                  style={{ display: 'flex', width: '520px', overflow: 'auto' }}
-                >
-                  {albumsImage &&
-                    albumsImage.map((image: string, index: number) => (
-                      <div key={index} style={{ marginLeft: '1rem' }}>
-                        <ImagePreview
-                          image={image}
-                          remove={true}
-                          onRemove={function (): void {
-                            setAlbumsImage(
-                              albumsImage.filter((i) => i !== image),
-                            );
-                            const deleteRef = ref(storage, image);
-                            if (image !== '') {
-                              deleteObject(deleteRef)
-                                .then(() => console.log('success delete'))
-                                .catch((e) => console.warn(e));
-                            }
-                          }}
-                          onReplace={function (e: File): void {
-                            const newImage = [...albumsImage];
-                            const deleteRef = ref(storage, image);
-                            deleteObject(deleteRef)
-                              .then(() => console.log('delete success'))
-                              .catch((e) => console.warn(e));
-                            const imageRef = ref(
-                              storage,
-                              `test_image/${(Math.random() + 1)
-                                .toString(36)
-                                .substring(2)}`,
-                            );
-                            uploadBytes(imageRef, e).then((snapshot) => {
-                              getDownloadURL(snapshot.ref)
-                                .then((url) => {
-                                  newImage[index] = url;
-                                  setAlbumsImage(newImage);
-                                })
-                                .catch((e) => console.warn(e));
-                            });
-                          }}
-                          imageWidth={174}
-                          imageHeight={174}
-                        />
-                      </div>
-                    ))}
-                </div>
-              </Group>
+              )}
             </div>
           </Group>
+          {form.errors?.image && (
+            <span
+              style={{
+                color: '#ff0000',
+              }}
+            >
+              {form.errors?.image}
+            </span>
+          )}
           <div>
             <Title align={'center'} order={2} c={'#B82C67'} mt={'4rem'}>
-              Données du produit
+              Product detail
             </Title>
 
             <Grid gutter={7} gutterXs="md" gutterMd="xl" gutterXl={50}>
               <Grid.Col span={6}>
-                <h4 style={{ color: '#E7639A' }}>Prix</h4>
-                <div className={'badge'}>
-                  <span style={{ color: '#7C7C7C' }}>
-                    Prix du produit ( € ){' '}
-                  </span>
-                  <TextInput
-                    sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                    w={472}
-                    h={36}
-                    pl={10}
-                    mt={8}
-                    variant={'unstyled'}
-                    type={'text'}
-                    inputMode="numeric"
-                    onChange={(e) =>
-                      form.setFieldValue('price', +e.target.value)
-                    }
-                    defaultValue={data.price}
-                    min={0}
-                  />
-                </div>
-                <div className={'badge'} style={{ marginTop: '8px' }}>
-                  <span style={{ color: '#7C7C7C' }}>Prix bas ( € ) </span>
-                  <TextInput
-                    sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                    w={472}
-                    h={36}
-                    pl={10}
-                    mt={8}
-                    type={'text'}
-                    inputMode="numeric"
-                    variant={'unstyled'}
-                    onChange={(e) =>
-                      form.setFieldValue('discount_price', +e.target.value)
-                    }
-                    min={0}
-                    defaultValue={data.discount_price}
-                  />
-                </div>
-
-                <Box
-                  component={'div'}
-                  sx={{ display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <div>
-                    <span style={{ color: '#7C7C7C' }}>Depuis</span>
-                    <DateInput
+                <h4 style={{ color: '#E7639A', fontSize: 16 }}>Price</h4>
+                <div style={{ display: 'grid', gap: 16 }}>
+                  <div
+                    className={'badge'}
+                    style={{
+                      minHeight: 'fit-content',
+                    }}
+                  >
+                    <span style={{ color: '#707070' }}>
+                      Price of product ($){' '}
+                      <span style={{ color: '#FF0000' }}>*</span>
+                    </span>
+                    <NumberInput
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                      w={228}
+                      w={472}
                       h={36}
+                      pl={10}
                       mt={8}
+                      maxLength={9}
+                      max={999999999}
                       variant={'unstyled'}
-                      onChange={(e) =>
-                        form.setFieldValue('discount_start_date', e)
-                      }
-                      minDate={new Date(data?.discount_start_date as Date)}
-                      defaultValue={new Date(data?.discount_start_date as Date)}
-                      rightSection={<img src={'calendar.svg'} alt={'icon'} />}
+                      precision={2}
+                      decimalSeparator="."
+                      {...form.getInputProps('price')}
+                      min={0}
                     />
                   </div>
-                  <div>
-                    <span style={{ color: '#7C7C7C' }}>Pour</span>
-                    <DateInput
-                      onChange={(e) =>
-                        form.setFieldValue('discount_end_date', String(e))
-                      }
+                  <div className={'badge'}>
+                    <span style={{ color: '#707070' }}>Sale price ($) </span>
+                    <NumberInput
+                      min={0}
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-                      w={228}
+                      w={472}
                       h={36}
+                      pl={10}
                       mt={8}
+                      maxLength={9}
                       variant={'unstyled'}
-                      defaultValue={new Date(data?.discount_end_date as Date)}
-                      minDate={new Date(data?.discount_start_date as Date)}
-                      rightSection={<img src={'calendar.svg'} alt={'icon'} />}
+                      precision={2}
+                      decimalSeparator="."
+                      {...form.getInputProps('current_price')}
+                      value={form.values?.current_price || 0}
                     />
                   </div>
-                </Box>
+                </div>
               </Grid.Col>
               <Grid.Col span={6}>
-                <h4 style={{ color: '#E7639A' }}>Entrepôt</h4>
+                <h4 style={{ color: '#E7639A', fontSize: 16 }}>Quantity </h4>
                 <div
                   style={{ display: 'flex', justifyContent: 'space-between' }}
                 >
                   <div>
-                    <span style={{ color: '#7C7C7C' }}>Lester ( g ) </span>
-                    <TextInput
+                    <span style={{ color: '#707070' }}>
+                      Mass (g) <span style={{ color: '#FF0000' }}>*</span>{' '}
+                    </span>
+                    <NumberInput
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
                       w={228}
                       h={36}
                       pl={10}
                       mt={8}
                       variant={'unstyled'}
-                      type={'text'}
-                      inputMode="numeric"
-                      {...form.getInputProps('weight')}
-                      defaultValue={data.weight}
+                      precision={2}
+                      decimalSeparator="."
                       min={0}
-                      required
+                      {...form.getInputProps('mass')}
+                      value={form.values?.mass || 0}
                     />
                   </div>
                   <div>
-                    <span style={{ color: '#7C7C7C' }}>Entre pôt </span>
-                    <TextInput
-                      defaultValue={data.amount}
+                    <span style={{ color: '#707070' }}>
+                      Quantity <span style={{ color: '#FF0000' }}>*</span>{' '}
+                    </span>
+                    <NumberInput
                       sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
                       w={228}
                       h={36}
                       pl={10}
                       mt={8}
+                      type="number"
+                      maxLength={9}
                       variant={'unstyled'}
-                      type={'number'}
-                      {...form.getInputProps('amount')}
-                      min={0}
-                      required
+                      min={1}
+                      {...form.getInputProps('quantity')}
                     />
                   </div>
                 </div>
@@ -598,13 +659,20 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
             </Grid>
           </div>
           <div>
-            <h4 style={{ color: '#E7639A', marginBottom: '5px' }}>Attribute</h4>
-            <Tabs defaultValue={'1'}>
+            <h4 style={{ color: '#E7639A', marginBottom: '5px', fontSize: 16 }}>
+              Attribute
+            </h4>
+            <Tabs
+              value={tabSelected}
+              onTabChange={(tab: string) => {
+                handleChangeTab(tab);
+              }}
+            >
               <div style={{ width: '18.75rem' }}>
                 <Tabs.List>
-                  <Tabs.Tab value={'1'}>Colour</Tabs.Tab>
-                  <Tabs.Tab value={'2'}>Contenace</Tabs.Tab>
-                  <Tabs.Tab value={'3'}>Packaging</Tabs.Tab>
+                  <Tabs.Tab value={'1'}>Color</Tabs.Tab>
+                  <Tabs.Tab value={'2'}>Capacity</Tabs.Tab>
+                  <Tabs.Tab value={'3'}>Package</Tabs.Tab>
                 </Tabs.List>
               </div>
               <Tabs.Panel value={'1'}>
@@ -615,9 +683,10 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon
@@ -627,13 +696,13 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                   onClick={() =>
                     setState((p) => ({
                       ...p,
-
                       colorAttribute: [
                         ...colorAttribute,
                         { image: '', name: '', price: 0 },
                       ],
                     }))
                   }
+                  disabled={colorAttribute.length >= 4}
                 >
                   <img src={'/plus_pink.svg'} alt={'icon'} />
                 </ActionIcon>
@@ -642,41 +711,24 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                     {colorAttribute?.map((item: IAttribute, index: number) => (
                       <div key={index}>
                         <AttributeCards
-                          attributeType="edit"
-                          attributePrice={item.price}
-                          defaultColor={item.color}
                           onReplaceImage={(file) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
                             );
-                            const deleteRef = ref(storage, item.image);
-                            deleteObject(deleteRef)
-                              .then(() => console.log('success delete'))
-                              .catch((e) => console.warn(e));
-                            const imageRef = ref(
-                              storage,
-                              `test_image/${Date.now()}`,
-                            );
-                            uploadBytes(imageRef, file).then((snapshot) => {
-                              getDownloadURL(snapshot.ref)
-                                .then((url) => {
-                                  const addImage = {
-                                    ...colorAttribute[currentIndex],
-                                    image: url,
-                                  };
-                                  const newImage = [
-                                    ...colorAttribute.slice(0, currentIndex),
-                                    addImage,
-                                    ...colorAttribute.slice(currentIndex + 1),
-                                  ];
-                                  setState((p) => ({
-                                    ...p,
-                                    colorAttribute: newImage,
-                                  }));
-                                  // PUT(`/api/product/detail/${id}`, { url_image: newImage });
-                                })
-                                .catch((e) => console.warn(e));
-                            });
+                            const addImage = {
+                              ...colorAttribute[currentIndex],
+                              image: URL.createObjectURL(file),
+                              imageFile: file,
+                            };
+                            const newImage = [
+                              ...colorAttribute.slice(0, currentIndex),
+                              addImage,
+                              ...colorAttribute.slice(currentIndex + 1),
+                            ];
+                            setState((p) => ({
+                              ...p,
+                              colorAttribute: newImage,
+                            }));
                           }}
                           onRemoveImage={() => {
                             const currentIndex = colorAttribute.findIndex(
@@ -686,6 +738,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                             const addPrice = {
                               ...colorAttribute[currentIndex],
                               image: '',
+                              imageFile: null,
                             };
                             const emptyImage = [
                               ...colorAttribute.slice(0, currentIndex),
@@ -697,51 +750,39 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                               ...p,
                               colorAttribute: emptyImage,
                             }));
-                            const deleteRef = ref(storage, item.image);
-                            deleteObject(deleteRef)
-                              .then(() => console.log('success delete'))
-                              .catch((e) => console.warn(e));
                           }}
-                          productImage={item.image}
-                          attributeTitle={'Colour'}
+                          attributeName={item.name}
+                          attributePrice={item.price}
+                          productImage={item.image?.url}
+                          attributeTitle={'Color'}
                           onAddImage={(file) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
                             );
-
-                            const imageRef = ref(
-                              storage,
-                              `test_image/${Date.now()}`,
-                            );
-                            uploadBytes(imageRef, file?.[0]).then(
-                              (snapshot) => {
-                                getDownloadURL(snapshot.ref)
-                                  .then((url) => {
-                                    const addImage = {
-                                      ...colorAttribute[currentIndex],
-                                      image: url,
-                                    };
-                                    const newImage = [
-                                      ...colorAttribute.slice(0, currentIndex),
-                                      addImage,
-                                      ...colorAttribute.slice(currentIndex + 1),
-                                    ];
-                                    setState((p) => ({
-                                      ...p,
-                                      colorAttribute: newImage,
-                                    }));
-                                  })
-                                  .catch((e) => console.warn(e));
-                              },
-                            );
+                            const addImage = {
+                              ...colorAttribute[currentIndex],
+                              image: URL.createObjectURL(file?.[0]),
+                              imageFile: file?.[0],
+                            };
+                            const newImage = [
+                              ...colorAttribute.slice(0, currentIndex),
+                              addImage,
+                              ...colorAttribute.slice(currentIndex + 1),
+                            ];
+                            setState((p) => ({
+                              ...p,
+                              colorAttribute: newImage,
+                            }));
                           }}
                           onCancel={() => {
                             setState((p) => ({
                               ...p,
-                              deleteType: 'color',
-                              deleteProperties: colorAttribute[index],
+                              colorAttribute: colorAttribute.filter(
+                                (item: IAttribute) =>
+                                  item !== colorAttribute[index],
+                              ),
+                              messageError: '',
                             }));
-                            open();
                           }}
                           onPriceChange={(e) => {
                             const currentIndex = colorAttribute.findIndex(
@@ -749,7 +790,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                             );
                             const addPrice = {
                               ...colorAttribute[currentIndex],
-                              price: +e.target.value,
+                              price: e,
                             };
                             const newPrice = [
                               ...colorAttribute.slice(0, currentIndex),
@@ -759,6 +800,26 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                             setState((p) => ({
                               ...p,
                               colorAttribute: newPrice,
+                            }));
+                          }}
+                          onNameColorChange={(value: string) => {
+                            const currentIndex = colorAttribute.findIndex(
+                              (i) => i === colorAttribute[index],
+                            );
+                            const addColor = {
+                              ...colorAttribute[currentIndex],
+                              name: value,
+                            };
+                            const newColor = [
+                              ...colorAttribute.slice(0, currentIndex),
+                              addColor,
+                              ...colorAttribute.slice(currentIndex + 1),
+                            ];
+
+                            setState((p) => ({
+                              ...p,
+                              colorAttribute: newColor,
+                              messageError: '',
                             }));
                           }}
                           onColorChange={(color) => {
@@ -779,6 +840,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                             setState((p) => ({
                               ...p,
                               colorAttribute: newColor,
+                              messageError: '',
                             }));
                           }}
                         />
@@ -795,9 +857,10 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon
@@ -814,6 +877,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       ],
                     }))
                   }
+                  disabled={capacityAttribute.length >= 4}
                 >
                   <img src={'/plus_pink.svg'} alt={'icon'} />
                 </ActionIcon>
@@ -823,39 +887,24 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       (item: IAttribute, index: number) => (
                         <div key={index}>
                           <AttributeCards
-                            attributeName={item.name}
-                            attributePrice={item.price}
                             onReplaceImage={(file) => {
                               const currentIndex = capacityAttribute.findIndex(
                                 (i) => i === capacityAttribute[index],
                               );
-                              const deleteRef = ref(storage, item.image);
-                              deleteObject(deleteRef)
-                                .then(() => console.log('success delete'))
-                                .catch((e) => console.warn(e));
-                              const imageRef = ref(
-                                storage,
-                                `test_image/${Date.now()}`,
-                              );
-                              uploadBytes(imageRef, file).then((snapshot) => {
-                                getDownloadURL(snapshot.ref).then((url) => {
-                                  const addImage = {
-                                    ...capacityAttribute[currentIndex],
-                                    image: url,
-                                  };
-                                  const newImage = [
-                                    ...capacityAttribute.slice(0, currentIndex),
-                                    addImage,
-                                    ...capacityAttribute.slice(
-                                      currentIndex + 1,
-                                    ),
-                                  ];
-                                  setState((p) => ({
-                                    ...p,
-                                    capacityAttribute: newImage,
-                                  }));
-                                });
-                              });
+                              const addImage = {
+                                ...capacityAttribute[currentIndex],
+                                image: URL.createObjectURL(file),
+                                imageFile: file,
+                              };
+                              const newImage = [
+                                ...capacityAttribute.slice(0, currentIndex),
+                                addImage,
+                                ...capacityAttribute.slice(currentIndex + 1),
+                              ];
+                              setState((p) => ({
+                                ...p,
+                                capacityAttribute: newImage,
+                              }));
                             }}
                             onRemoveImage={() => {
                               const currentIndex = capacityAttribute.findIndex(
@@ -864,6 +913,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                               const addPrice = {
                                 ...capacityAttribute[currentIndex],
                                 image: '',
+                                imageFile: null,
                               };
 
                               const newPrice = [
@@ -875,61 +925,40 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                                 ...p,
                                 capacityAttribute: newPrice,
                               }));
-                              const deleteRef = ref(storage, item.image);
-                              deleteObject(deleteRef)
-                                .then(() => console.log('success delete'))
-                                .catch((e) => console.warn(e));
                             }}
-                            productImage={item.image}
-                            attributeTitle={'Contennace'}
+                            attributeName={item.name}
+                            attributePrice={item.price}
+                            productImage={item.image?.url}
+                            attributeTitle={'Capacity name'}
                             onAddImage={(file) => {
                               const currentIndex = capacityAttribute.findIndex(
                                 (i) => i === capacityAttribute[index],
                               );
-                              const imageRef = ref(
-                                storage,
-                                `test_image/${Date.now()}`,
-                              );
-                              uploadBytes(imageRef, file?.[0])
-                                .then((snapshot) => {
-                                  getDownloadURL(snapshot.ref).then((url) => {
-                                    const addImage = {
-                                      ...capacityAttribute[currentIndex],
-                                      image: url,
-                                    };
-                                    const newImage = [
-                                      ...capacityAttribute.slice(
-                                        0,
-                                        currentIndex,
-                                      ),
-                                      addImage,
-                                      ...capacityAttribute.slice(
-                                        currentIndex + 1,
-                                      ),
-                                    ];
-                                    setState((p) => ({
-                                      ...p,
-                                      capacityAttribute: newImage,
-                                    }));
-                                  });
-                                })
-                                .catch((e) => console.warn(e));
-                            }}
-                            onCancel={() => {
-                              // setState((p) => ({
-                              //   ...p,
-                              //
-                              //   capacityAttribute: capacityAttribute.filter(
-                              //     (item: IAttribute) =>
-                              //       item !== capacityAttribute[index],
-                              //   ),
-                              // }));
+
+                              const addImage = {
+                                ...capacityAttribute[currentIndex],
+                                image: URL.createObjectURL(file?.[0]),
+                                imageFile: file?.[0],
+                              };
+                              const newImage = [
+                                ...capacityAttribute.slice(0, currentIndex),
+                                addImage,
+                                ...capacityAttribute.slice(currentIndex + 1),
+                              ];
                               setState((p) => ({
                                 ...p,
-                                deleteType: 'capacity',
-                                deleteProperties: capacityAttribute[index],
+                                capacityAttribute: newImage,
                               }));
-                              open();
+                            }}
+                            onCancel={() => {
+                              setState((p) => ({
+                                ...p,
+                                messageError: '',
+                                capacityAttribute: capacityAttribute.filter(
+                                  (item: IAttribute) =>
+                                    item !== capacityAttribute[index],
+                                ),
+                              }));
                             }}
                             onPriceChange={(e) => {
                               const currentIndex = capacityAttribute.findIndex(
@@ -937,7 +966,7 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                               );
                               const addPrice = {
                                 ...capacityAttribute[currentIndex],
-                                price: +e.target.value,
+                                price: e,
                               };
                               const newPrice = [
                                 ...capacityAttribute.slice(0, currentIndex),
@@ -965,9 +994,9 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                               setState((p) => ({
                                 ...p,
                                 capacityAttribute: newPrice,
+                                messageError: '',
                               }));
                             }}
-                            attributeType="edit"
                           />
                         </div>
                       ),
@@ -983,9 +1012,10 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                       color: '#d72525',
                       fontSize: '13px',
                       marginLeft: '5px',
+                      fontStyle: 'italic',
                     }}
                   >
-                    La valeur par défaut est le prix du produit
+                    The default value is the price of the product.
                   </p>
                 </div>
                 <ActionIcon
@@ -995,160 +1025,133 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                   onClick={() =>
                     setState((p) => ({
                       ...p,
-
-                      packagingAttribute: [
-                        ...packagingAttribute,
+                      packageAttribute: [
+                        ...packageAttribute,
                         { image: '', name: '', price: 0 },
                       ],
                     }))
                   }
+                  disabled={packageAttribute.length >= 4}
                 >
                   <img src={'/plus_pink.svg'} alt={'icon'} />
                 </ActionIcon>
                 <Box mt="1rem">
                   <Group>
-                    {packagingAttribute?.map(
+                    {packageAttribute?.map(
                       (item: IAttribute, index: number) => (
                         <div key={index}>
                           <AttributeCards
-                            attributeType="edit"
-                            attributeName={item.name}
-                            attributePrice={item.price}
                             onReplaceImage={(file) => {
-                              const currentIndex = packagingAttribute.findIndex(
-                                (i) => i === packagingAttribute[index],
+                              const currentIndex = packageAttribute.findIndex(
+                                (i) => i === packageAttribute[index],
                               );
-                              const deleteRef = ref(storage, item.image);
-                              deleteObject(deleteRef)
-                                .then(() => console.log('success delete'))
-                                .catch((e) => console.warn(e));
-                              const imageRef = ref(
-                                storage,
-                                `test_image/${Date.now()}`,
-                              );
-                              uploadBytes(imageRef, file).then((snapshot) => {
-                                getDownloadURL(snapshot.ref).then((url) => {
-                                  const addImage = {
-                                    ...packagingAttribute[currentIndex],
-                                    image: url,
-                                  };
 
-                                  const newImage = [
-                                    ...packagingAttribute.slice(
-                                      0,
-                                      currentIndex,
-                                    ),
-                                    addImage,
-                                    ...packagingAttribute.slice(
-                                      currentIndex + 1,
-                                    ),
-                                  ];
-                                  setState((p) => ({
-                                    ...p,
-                                    packagingAttribute: newImage,
-                                  }));
-                                });
-                              });
-                            }}
-                            onRemoveImage={() => {
-                              const currentIndex = packagingAttribute.findIndex(
-                                (i) => i === packagingAttribute[index],
-                              );
-                              const addPrice = {
-                                ...packagingAttribute[currentIndex],
-                                image: '',
+                              const addImage = {
+                                ...packageAttribute[currentIndex],
+                                image: URL.createObjectURL(file),
+                                imageFile: file,
                               };
-                              const newPrice = [
-                                ...packagingAttribute.slice(0, currentIndex),
-                                addPrice,
-                                ...packagingAttribute.slice(currentIndex + 1),
+
+                              const newImage = [
+                                ...packageAttribute.slice(0, currentIndex),
+                                addImage,
+                                ...packageAttribute.slice(currentIndex + 1),
                               ];
                               setState((p) => ({
                                 ...p,
-                                packagingAttribute: newPrice,
+                                packageAttribute: newImage,
                               }));
-                              const deleteRef = ref(storage, item.image);
-                              deleteObject(deleteRef)
-                                .then(() => console.log('success delete'))
-                                .catch((e) => console.warn(e));
                             }}
-                            productImage={item.image}
-                            attributeTitle={'Pakaging'}
+                            onRemoveImage={() => {
+                              const currentIndex = packageAttribute.findIndex(
+                                (i) => i === packageAttribute[index],
+                              );
+                              const addPrice = {
+                                ...packageAttribute[currentIndex],
+                                image: '',
+                                imageFile: null,
+                              };
+                              const newPrice = [
+                                ...packageAttribute.slice(0, currentIndex),
+                                addPrice,
+                                ...packageAttribute.slice(currentIndex + 1),
+                              ];
+                              setState((p) => ({
+                                ...p,
+                                messageError: '',
+                                packageAttribute: newPrice,
+                              }));
+                            }}
+                            attributeName={item.name}
+                            attributePrice={item.price}
+                            productImage={item.image?.url || item?.image}
+                            attributeTitle={'Package name'}
                             onAddImage={(file) => {
-                              const currentIndex = packagingAttribute.findIndex(
-                                (i) => i === packagingAttribute[index],
+                              const currentIndex = packageAttribute.findIndex(
+                                (i) => i === packageAttribute[index],
                               );
-                              const imageRef = ref(
-                                storage,
-                                `test_image/${Date.now()}`,
-                              );
-                              uploadBytes(imageRef, file?.[0]).then(
-                                (snapshot) => {
-                                  getDownloadURL(snapshot.ref).then((url) => {
-                                    const addImage = {
-                                      ...packagingAttribute[currentIndex],
-                                      image: url,
-                                    };
-                                    const newImage = [
-                                      ...packagingAttribute.slice(
-                                        0,
-                                        currentIndex,
-                                      ),
-                                      addImage,
-                                      ...packagingAttribute.slice(
-                                        currentIndex + 1,
-                                      ),
-                                    ];
-                                    setState((p) => ({
-                                      ...p,
-                                      packagingAttribute: newImage,
-                                    }));
-                                  });
-                                },
-                              );
+
+                              const addImage = {
+                                ...packageAttribute[currentIndex],
+                                image: URL.createObjectURL(file?.[0]),
+                                imageFile: file?.[0],
+                              };
+                              const newImage = [
+                                ...packageAttribute.slice(0, currentIndex),
+                                addImage,
+                                ...packageAttribute.slice(currentIndex + 1),
+                              ];
+                              setState((p) => ({
+                                ...p,
+                                packageAttribute: newImage,
+                              }));
                             }}
                             onCancel={() => {
                               setState((p) => ({
                                 ...p,
-                                deleteType: 'packaging',
-                                deleteProperties: packagingAttribute[index],
+                                messageError: '',
+                                packageAttribute: packageAttribute.filter(
+                                  (item: IAttribute) =>
+                                    item !== packageAttribute[index],
+                                ),
                               }));
-                              open();
                             }}
                             onPriceChange={(e) => {
-                              const currentIndex = packagingAttribute.findIndex(
-                                (i) => i === packagingAttribute[index],
+                              const currentIndex = packageAttribute.findIndex(
+                                (i) => i === packageAttribute[index],
                               );
                               const addPrice = {
-                                ...packagingAttribute[currentIndex],
-                                price: +e.target.value,
+                                ...packageAttribute[currentIndex],
+                                price: e,
                               };
                               const newPrice = [
-                                ...packagingAttribute.slice(0, currentIndex),
+                                ...packageAttribute.slice(0, currentIndex),
                                 addPrice,
-                                ...packagingAttribute.slice(currentIndex + 1),
+                                ...packageAttribute.slice(currentIndex + 1),
                               ];
                               setState((p) => ({
                                 ...p,
-                                packagingAttribute: newPrice,
+                                packageAttribute: newPrice,
+                                messageError: '',
                               }));
                             }}
                             onAttributeChange={(e) => {
-                              const currentIndex = packagingAttribute.findIndex(
-                                (i) => i === packagingAttribute[index],
+                              const currentIndex = packageAttribute.findIndex(
+                                (i) => i === packageAttribute[index],
                               );
                               const addPrice = {
-                                ...packagingAttribute[currentIndex],
+                                ...packageAttribute[currentIndex],
                                 name: e.target.value,
                               };
                               const newPrice = [
-                                ...packagingAttribute.slice(0, currentIndex),
+                                ...packageAttribute.slice(0, currentIndex),
                                 addPrice,
-                                ...packagingAttribute.slice(currentIndex + 1),
+                                ...packageAttribute.slice(currentIndex + 1),
                               ];
                               setState((p) => ({
                                 ...p,
-                                packagingAttribute: newPrice,
+                                packageAttribute: newPrice,
+                                messageError: '',
                               }));
                             }}
                           />
@@ -1159,11 +1162,28 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                 </Box>
               </Tabs.Panel>
             </Tabs>
+            {messageError && (
+              <div
+                style={{
+                  fontSize: 12,
+                  marginTop: 8,
+                  color: '#ff0000',
+                }}
+              >
+                {messageError}
+              </div>
+            )}
           </div>
           <Title order={2} c={'#B82C67'} align="center">
-            Description du produit{' '}
+            Product description{' '}
           </Title>
-          <Container>
+          <Container
+            style={{
+              width: '100%',
+              paddingLeft: 0,
+              paddingRight: 0,
+            }}
+          >
             <Tabs defaultValue={'1'}>
               <Tabs.List grow>
                 <Tabs.Tab value="1">
@@ -1173,12 +1193,12 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                 </Tabs.Tab>
                 <Tabs.Tab value="2">
                   <Title order={4} c={'#B82C67'}>
-                    Caractéristiques
+                    Characteristics
                   </Title>
                 </Tabs.Tab>
                 <Tabs.Tab value="3">
                   <Title order={4} c={'#B82C67'}>
-                    Utilisation
+                    Use
                   </Title>
                 </Tabs.Tab>
                 <Tabs.Tab value="4">
@@ -1187,93 +1207,38 @@ const ProductEditForm: React.FC<productEditFormProps> = ({ id, onSuccess }) => {
                   </Title>
                 </Tabs.Tab>
               </Tabs.List>
-              {data?.note !== null && (
-                <>
-                  <Tabs.Panel value="1" pt={'md'}>
-                    <TextEditor editor={editor2} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="2" pt={'md'}>
-                    <TextEditor editor={editor} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="3" pt={'md'}>
-                    <TextEditor editor={editor3} />
-                  </Tabs.Panel>
-                  <Tabs.Panel value="4" pt={'md'}>
-                    <TextEditor editor={editor1} />
-                  </Tabs.Panel>
-                </>
-              )}
+
+              <Tabs.Panel value="1" pt={'md'}>
+                <TextEditor editor={editor2} />
+              </Tabs.Panel>
+              <Tabs.Panel value="2" pt={'md'}>
+                <TextEditor editor={editor} />
+              </Tabs.Panel>
+              <Tabs.Panel value="3" pt={'md'}>
+                <TextEditor editor={editor3} />
+              </Tabs.Panel>
+              <Tabs.Panel value="4" pt={'md'}>
+                <TextEditor editor={editor1} />
+              </Tabs.Panel>
             </Tabs>
           </Container>
         </Stack>
         <Button
           type="submit"
           c={'#fff'}
-          rightIcon={<img src="/tick.svg" alt="icon" />}
-          w={154}
-          h={56}
+          leftIcon={<img src="/tick.svg" width={16} alt="icon" />}
+          w={100}
+          h={40}
           sx={{ float: 'right' }}
           bg={'#B82C67'}
           radius={'md'}
           mt={'2rem'}
+          disabled={isLoading}
         >
           Done
         </Button>
         <div style={{ height: '60px' }}></div>
       </form>
-      <Modal
-        opened={opened}
-        onClose={close}
-        centered
-        radius={'md'}
-        withCloseButton={false}
-      >
-        <Paper pt={'1rem'}>
-          <Text align={'center'} sx={{ fontSize: '16px', fontWeight: 600 }}>
-            Voulez-vous supprimer cette propriété ?
-          </Text>
-          <Group sx={{ float: 'right' }} my={32}>
-            <Button variant={'subtle'} onClick={close}>
-              <span style={{ color: '#333' }}>Non</span>
-            </Button>
-            <Button
-              onClick={() => {
-                if (deleteType === 'color') {
-                  setState((p) => ({
-                    ...p,
-                    colorAttribute: colorAttribute.filter(
-                      (item) => item !== deleteProperties,
-                    ),
-                  }));
-                } else if (deleteType === 'capacity') {
-                  setState((p) => ({
-                    ...p,
-                    capacityAttribute: capacityAttribute.filter(
-                      (item) => item !== deleteProperties,
-                    ),
-                  }));
-                } else {
-                  setState((p) => ({
-                    ...p,
-                    packagingAttribute: packagingAttribute.filter(
-                      (item) => item !== deleteProperties,
-                    ),
-                  }));
-                }
-                if (deleteProperties.image !== '') {
-                  const deleteRef = ref(storage, deleteProperties.image);
-                  deleteObject(deleteRef)
-                    .then(() => console.log('success delete'))
-                    .catch((e) => console.warn(e));
-                }
-                close();
-              }}
-            >
-              Qui
-            </Button>
-          </Group>
-        </Paper>
-      </Modal>
     </div>
   );
 };

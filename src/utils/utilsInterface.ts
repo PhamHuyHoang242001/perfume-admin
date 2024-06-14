@@ -41,7 +41,7 @@ type CategoryItem = {
 };
 
 export type CategoryType = {
-  id?: number;
+  id: number | string;
   name?: string;
   enable?: boolean;
   image?: string;
@@ -89,6 +89,7 @@ export interface IProductForm {
   current_price: number;
   sub_subcategory_id?: number | null;
   url_image: string;
+  image: File;
   note: {
     Caractéristiques: string;
     Composition: string;
@@ -101,7 +102,7 @@ export interface IProductForm {
   discount_start_date: string | DateValue;
   discount_end_date: string | Date;
   color: object;
-  packaging: object;
+  package: object;
   capacity: object;
   album: string[];
   category?: {
@@ -113,12 +114,15 @@ export interface IProductForm {
     id: number;
   };
   subsubcategory?: number | null;
+  image_ids?: number[];
 }
 export interface IAttribute {
-  image: string;
+  image: string | any;
   price: number;
   name: string;
   color?: string;
+  imageFile?: File | null;
+  image_id?: number;
 }
 export type subsub = {
   name: string;

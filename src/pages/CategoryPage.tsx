@@ -1,4 +1,4 @@
-import { Title, Button, TextInput, Checkbox } from '@mantine/core';
+import { Button, Checkbox, TextInput, Title } from '@mantine/core';
 
 import { useForm } from '@mantine/form';
 // import {
@@ -11,10 +11,10 @@ import { useEffect, useState } from 'react';
 // import ImagePreview from '../components/common/ImagePreview';
 // import { storage } from '../utils/firebaseConfig';
 // import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { POST } from '../utils/fetch';
-import { apiRoute } from '../utils/apiRoute';
-import { CategoryType } from '../utils/utilsInterface';
 import CustomSelect from '../components/common/CustomSelect';
+import { apiRoute } from '../utils/apiRoute';
+import { POST } from '../utils/fetch';
+import { CategoryType } from '../utils/utilsInterface';
 
 const CategoryPage = () => {
   // const [state, setState] = useState({
@@ -75,7 +75,7 @@ const CategoryPage = () => {
         gap: 20,
         maxWidth: 1440,
         margin: 'auto',
-        justifyContent:'space-evenly'
+        justifyContent: 'space-evenly',
       }}
     >
       <form
@@ -187,7 +187,7 @@ const CategoryPage = () => {
                   height={32}
                   alt={'img'}
                 />
-                <p style={{ fontSize: '13px' }}>Ajouter une photo</p>
+                <p style={{ fontSize: '13px' }}>Add image</p>
               </div>
             </Dropzone>
           )}

@@ -2,11 +2,11 @@ import {
   Box,
   Button,
   ColorInput,
+  NumberInput,
 
   // ColorPicker,
   Paper,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { Dropzone, FileWithPath, IMAGE_MIME_TYPE } from '@mantine/dropzone';
 import React from 'react';
@@ -16,11 +16,9 @@ type attributeCardProps = {
   attributeType?: string;
   attributePrice?: number;
   onCancel?: () => void;
-
   productImage: string;
-  attributeIndex?: number;
   attributeTitle: string;
-  onPriceChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onPriceChange?: (e: number) => void;
   onColorChange?: (e: string) => void;
   onAttributeChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveImage: () => void;
@@ -36,7 +34,6 @@ const AttributeCards: React.FC<attributeCardProps> = ({
   onAddImage,
   onCancel,
   productImage,
-  attributeIndex,
   attributeTitle,
   onPriceChange,
   onColorChange,
@@ -49,6 +46,7 @@ const AttributeCards: React.FC<attributeCardProps> = ({
 }) => {
   // const [chooseColor, setChooseColor] = React.useState(false);
   // const [color, setColor] = React.useState('');
+
   return (
     <Paper
       w={'14.4375rem'}
@@ -75,12 +73,12 @@ const AttributeCards: React.FC<attributeCardProps> = ({
         >
           <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
             <img src={'/add_image_ic.svg'} width={32} height={32} alt={'img'} />
-            <p style={{ fontSize: '13px' }}>Ajouter une photo</p>
+            <p style={{ fontSize: '13px' }}>Add image</p>
           </div>
         </Dropzone>
       )}
       <Box p={'0.5rem 1rem'}>
-        {onColorChange ? (
+        {onColorChange && (
           <div>
             <span style={{ color: '#707070', fontSize: 12 }}>
               Name <span style={{ color: '#FF0000' }}>*</span>{' '}
@@ -102,6 +100,7 @@ const AttributeCards: React.FC<attributeCardProps> = ({
               }}
               h={24}
               pl={10}
+              mb={8}
               bg="white"
               maxLength={20}
               variant={'unstyled'}
@@ -113,10 +112,6 @@ const AttributeCards: React.FC<attributeCardProps> = ({
               min={1}
             />
           </div>
-        ) : (
-          <Title order={5} c={'#B82C67'}>
-            Type-{attributeIndex}
-          </Title>
         )}
         <div
           style={{
@@ -128,9 +123,10 @@ const AttributeCards: React.FC<attributeCardProps> = ({
           <Box>
             <span style={{ color: '#7C7C7C', fontSize: '12px' }}>
               {attributeTitle}
+              <span style={{ color: '#ff0000' }}> *</span>
             </span>
 
-            {attributeTitle.toLowerCase() === 'colour' ? (
+            {attributeTitle.toLowerCase() === 'color' ? (
               <ColorInput
                 withEyeDropper={false}
                 variant="unstyled"
@@ -144,20 +140,24 @@ const AttributeCards: React.FC<attributeCardProps> = ({
                 w={'6.8125rem'}
                 mb={'0.85rem'}
                 onChange={onAttributeChange}
+                required
                 defaultValue={attributeName}
+                value={attributeName}
               />
             )}
           </Box>
           <Box ml={'1rem'} mb={'0.85rem'}>
             <span style={{ color: '#7C7C7C', fontSize: '12px' }}>
-              Price plus
+              Price plus ($)
             </span>
-            <TextInput
-              rightSection={'€'}
+            <NumberInput
+              rightSection={'$'}
               h={'1.5rem'}
               w={'5rem'}
+              precision={2}
+              decimalSeparator="."
+              maxLength={9}
               onChange={onPriceChange}
-              type="number"
               defaultValue={attributePrice}
               min={0}
             />
