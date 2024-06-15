@@ -11,7 +11,7 @@ import { DELETE, GET } from '../../utils/fetch.ts';
 
 import { notifications } from '@mantine/notifications';
 import ProductEditForm from '../form/ProductEditForm.tsx';
-import CategoryTable from './CategoryTable.tsx';
+import ProductTable from './ProductTable.tsx';
 
 interface CategoryContentProps {
   listCategory: CategoryType[];
@@ -43,7 +43,7 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
 
   const getProduct = async (value?: any) => {
     const queryParams = {
-      ...(value?.category && {
+      ...((value?.category || categorySelected) && {
         category_ids: value?.category ? value?.category : categorySelected,
       }),
       ...(search && {
@@ -140,7 +140,7 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
   }, [subCategory, categorySelected, subCategorySelected]) as any;
 
   useEffect(() => {
-    getProduct();
+    categorySelected && getProduct();
   }, []);
   return (
     <div>
@@ -149,6 +149,14 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
           value={categorySelected}
           onTabChange={(tab: string) => {
             setCategorySelected(tab);
+            getProduct({
+              category: tab,
+              subCategory: null,
+              subSubCategory: null,
+            });
+            if (subCategorySelected) setSubCategorySelected(null);
+            if (subSubCategorySelected) setSubSubCategorySelected(null);
+            if (search) setSearch('');
           }}
         >
           <Tabs.List grow>
@@ -156,29 +164,11 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
               listCategory?.map((item: CategoryType) => (
                 <Tabs.Tab
                   key={item.id}
-                  value={item.id.toString()}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    paddingLeft: 0,
-                    paddingRight: 0,
-                  }}
+                  value={item?.id ? item?.id.toString() : '0'}
                 >
                   <Title
                     c={'pink'}
                     order={4}
-                    onClick={() => {
-                      setCategorySelected(item?.id);
-                      getProduct({
-                        category: item?.id,
-                        subCategory: null,
-                        subSubCategory: null,
-                      });
-                      if (subCategorySelected) setSubCategorySelected(null);
-                      if (subSubCategorySelected)
-                        setSubSubCategorySelected(null);
-                      if (search) setSearch('');
-                    }}
                     style={{
                       width: '100%',
                       display: 'block',
@@ -255,7 +245,7 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
             <span className="loader" />
           </div>
         ) : (
-          <CategoryTable
+          <ProductTable
             openEditModal={openEditModal}
             productData={productData}
             total={total}
@@ -315,7 +305,10 @@ const CategoryContent = ({ listCategory }: CategoryContentProps) => {
             <Modal.Body>
               <ProductEditForm
                 id={productID}
-                onSuccess={() => {}}
+                onSuccess={() => {
+                  handleSearch();
+                  setState((prev) => ({ ...prev, editModal: false }));
+                }}
                 listCategory={listCategory}
               />
             </Modal.Body>

@@ -45,7 +45,7 @@ type CategoryTableProps = {
   total?: number;
 };
 
-const CategoryTable = ({
+const ProductTable = ({
   productData,
   openEditModal,
   setState,
@@ -174,9 +174,10 @@ const CategoryTable = ({
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <Pagination
           total={total}
-          onChange={(v) =>
+          onChange={(page) =>
             setState((p: any) => ({
               ...p,
+              page: page,
             }))
           }
         />
@@ -185,4 +186,4 @@ const CategoryTable = ({
   );
 };
 
-export default CategoryTable;
+export default ProductTable;

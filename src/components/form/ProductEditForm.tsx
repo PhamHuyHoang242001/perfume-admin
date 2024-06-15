@@ -24,7 +24,7 @@ import { GetColorName } from 'hex-color-to-color-name';
 import { useEffect, useState } from 'react';
 import * as yup from 'yup';
 import { apiRoute } from '../../utils/apiRoute';
-import { GET, POST, instance } from '../../utils/fetch';
+import { GET, PATCH, instance } from '../../utils/fetch';
 import {
   CategoryType,
   IAttribute,
@@ -118,6 +118,7 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
     url_image: '',
     progress: 0,
     isLoading: false,
+    isLoadingImage: false,
     colorAttribute: [] as IAttribute[],
     capacityAttribute: [] as IAttribute[],
     packageAttribute: [] as IAttribute[],
@@ -127,6 +128,7 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
   });
   const {
     isLoading,
+    isLoadingImage,
     url_image,
     subCategory,
     subsubCategory,
@@ -213,12 +215,15 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
 
       if (res.status === 200) {
         form.setValues({
-          ...res.data,
+          name: res.data?.name,
+          mass: res.data?.mass,
           category_id: res.data?.category?.id,
           subcategory_id: res.data?.sub_subcategory?.id || '',
           sub_subcategory_id: res.data?.sub_subcategory?.id || '',
           current_price: res.data?.current_price || '',
-          image: res.data?.image?.[0]?.url,
+          image: res.data?.images?.[0]?.url,
+          price: res.data?.price,
+          id: res.data?.id,
         });
 
         const listSubCategoryCurr = listCategory
@@ -245,6 +250,7 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
           url_image: res.data?.images?.[0]?.url,
           subCategory: listSubCategoryCurr || [],
           subsubCategory: listSubSubCate || [],
+          createdDay: res.data?.created_ad,
         }));
       }
     } catch (error) {
@@ -253,7 +259,10 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
   };
 
   const handlePostImage = async (image: File) => {
+    if (!image) return null;
+
     try {
+      setState((prev) => ({ ...prev, isLoadingImage: true }));
       const formData = new FormData();
 
       formData.append('name', image?.name);
@@ -265,16 +274,19 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
           'Content-Type': 'multipart/form-data',
         },
       });
+      setState((prev) => ({ ...prev, isLoadingImage: false }));
 
       return resFile.data;
-    } catch (error) {}
+    } catch (error) {
+      setState((prev) => ({ ...prev, isLoadingImage: false }));
+    }
   };
 
   async function handleUpdateProduct(value: IProductForm) {
     try {
       if (isLoading) return;
       setState((prev) => ({ ...prev, isLoading: true }));
-      if (value?.image) {
+      if (typeof value?.image === 'object') {
         const resFile = await handlePostImage(value.image);
 
         if (resFile.id) {
@@ -290,9 +302,23 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
         delete value.sub_subcategory_id;
       }
 
-      const res = await POST(apiRoute.create_product, value);
+      if (colorAttribute?.length > 0) {
+        value.color = colorAttribute;
+      }
 
-      if (res.status === 201) {
+      if (capacityAttribute?.length > 0) {
+        value.capacity = capacityAttribute;
+      }
+      if (packageAttribute?.length > 0) {
+        value.package = packageAttribute;
+      }
+
+      const res = await PATCH(
+        apiRoute.detail_product + value?.id + '/patch/',
+        value,
+      );
+
+      if (res.status === 200) {
         onSuccess();
         notifications.show({
           message: 'Add new product successfully',
@@ -525,6 +551,7 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                 </>
               ) : (
                 <Dropzone
+                  loading={isLoading}
                   onDrop={(file) => {
                     file?.[0] &&
                       setState((p) => ({
@@ -711,14 +738,16 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                     {colorAttribute?.map((item: IAttribute, index: number) => (
                       <div key={index}>
                         <AttributeCards
-                          onReplaceImage={(file) => {
+                          onReplaceImage={async (file) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
                             );
+
+                            const image = await handlePostImage(file);
                             const addImage = {
                               ...colorAttribute[currentIndex],
-                              image: URL.createObjectURL(file),
-                              imageFile: file,
+                              image: image,
+                              image_id: image?.id,
                             };
                             const newImage = [
                               ...colorAttribute.slice(0, currentIndex),
@@ -755,15 +784,17 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                           attributePrice={item.price}
                           productImage={item.image?.url}
                           attributeTitle={'Color'}
-                          onAddImage={(file) => {
+                          onAddImage={async (file) => {
                             const currentIndex = colorAttribute.findIndex(
                               (i) => i === colorAttribute[index],
                             );
+                            const image = await handlePostImage(file?.[0]);
                             const addImage = {
                               ...colorAttribute[currentIndex],
-                              image: URL.createObjectURL(file?.[0]),
-                              imageFile: file?.[0],
+                              image: image,
+                              image_id: image?.id,
                             };
+
                             const newImage = [
                               ...colorAttribute.slice(0, currentIndex),
                               addImage,
@@ -887,14 +918,15 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                       (item: IAttribute, index: number) => (
                         <div key={index}>
                           <AttributeCards
-                            onReplaceImage={(file) => {
+                            onReplaceImage={async (file) => {
                               const currentIndex = capacityAttribute.findIndex(
                                 (i) => i === capacityAttribute[index],
                               );
+                              const image = await handlePostImage(file);
                               const addImage = {
                                 ...capacityAttribute[currentIndex],
-                                image: URL.createObjectURL(file),
-                                imageFile: file,
+                                image: image,
+                                image_id: image?.id,
                               };
                               const newImage = [
                                 ...capacityAttribute.slice(0, currentIndex),
@@ -930,15 +962,16 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                             attributePrice={item.price}
                             productImage={item.image?.url}
                             attributeTitle={'Capacity name'}
-                            onAddImage={(file) => {
+                            onAddImage={async (file) => {
                               const currentIndex = capacityAttribute.findIndex(
                                 (i) => i === capacityAttribute[index],
                               );
 
+                              const image = await handlePostImage(file?.[0]);
                               const addImage = {
                                 ...capacityAttribute[currentIndex],
-                                image: URL.createObjectURL(file?.[0]),
-                                imageFile: file?.[0],
+                                image: image,
+                                image_id: image?.id,
                               };
                               const newImage = [
                                 ...capacityAttribute.slice(0, currentIndex),
@@ -1041,17 +1074,16 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                       (item: IAttribute, index: number) => (
                         <div key={index}>
                           <AttributeCards
-                            onReplaceImage={(file) => {
+                            onReplaceImage={async (file) => {
                               const currentIndex = packageAttribute.findIndex(
                                 (i) => i === packageAttribute[index],
                               );
-
+                              const image = await handlePostImage(file);
                               const addImage = {
                                 ...packageAttribute[currentIndex],
-                                image: URL.createObjectURL(file),
-                                imageFile: file,
+                                image: image,
+                                image_id: image?.id,
                               };
-
                               const newImage = [
                                 ...packageAttribute.slice(0, currentIndex),
                                 addImage,
@@ -1086,15 +1118,16 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
                             attributePrice={item.price}
                             productImage={item.image?.url || item?.image}
                             attributeTitle={'Package name'}
-                            onAddImage={(file) => {
+                            onAddImage={async (file) => {
                               const currentIndex = packageAttribute.findIndex(
                                 (i) => i === packageAttribute[index],
                               );
 
+                              const image = await handlePostImage(file?.[0]);
                               const addImage = {
                                 ...packageAttribute[currentIndex],
-                                image: URL.createObjectURL(file?.[0]),
-                                imageFile: file?.[0],
+                                image: image,
+                                image_id: image?.id,
                               };
                               const newImage = [
                                 ...packageAttribute.slice(0, currentIndex),

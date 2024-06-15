@@ -1,43 +1,62 @@
-import { Button, Checkbox, TextInput, Title } from '@mantine/core';
-
-import { useForm } from '@mantine/form';
-// import {
-//   ref,
-//   deleteObject,
-//   uploadBytes,
-//   getDownloadURL,
-// } from 'firebase/storage';
-import { useEffect, useState } from 'react';
-// import ImagePreview from '../components/common/ImagePreview';
-// import { storage } from '../utils/firebaseConfig';
-// import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import CustomSelect from '../components/common/CustomSelect';
+import { Tabs, Title } from '@mantine/core';
+import { useListState } from '@mantine/hooks';
+import { useEffect, useMemo, useState } from 'react';
+import CategoryTable from '../components/category/CategoryTable';
+import HeaderCategory from '../components/category/HeaderCategory';
 import { apiRoute } from '../utils/apiRoute';
-import { POST } from '../utils/fetch';
-import { CategoryType } from '../utils/utilsInterface';
+import { GET, POST } from '../utils/fetch';
+import { CategoryType, itemSelectType } from '../utils/utilsInterface';
+
+const listOption = [
+  {
+    value: 'category',
+    label: 'Category',
+  },
+  {
+    value: 'subcategory',
+    label: 'Sub-category',
+  },
+  {
+    value: 'sub-subcategory',
+    label: 'Sub-sub-category',
+  },
+];
 
 const CategoryPage = () => {
-  // const [state, setState] = useState({
-  //   image: '',
-  //   loading: false,
-  // });
-  // const { image, loading } = state;
-  const [category, setCategory] = useState([]);
-  const categoryForm = useForm<Partial<CategoryType>>({
-    initialValues: {
-      name: '',
-      index: 0,
-      enable: true,
-      slug: '',
-    },
-  });
-  const subCategoryForm = useForm({
-    initialValues: {
-      name: '',
-      slug: '',
-      category: 0,
-    },
-  });
+  const [categorySelected, setCategorySelected] = useState<string | null>('0');
+  const [subCategorySelected, setSubCategorySelected] = useState<string | null>(
+    null,
+  );
+  const [status, setStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const [optionSelected, setOptionSelected] = useState<string | any>(
+    listOption[0]?.value,
+  );
+  const [state, handlers] = useListState<CategoryType>([]);
+
+  let listCategory = useMemo(() => {
+    return (
+      state?.map((item) => ({
+        value: item.id,
+        label: item.name,
+        ...item,
+      })) || []
+    );
+  }, [state]);
+
+  let listSubCategory = useMemo(() => {
+    return (
+      listCategory
+        ?.find((item) => categorySelected && item.id === +categorySelected)
+        ?.subcategories?.map((item) => ({
+          value: item.id,
+          label: item.name,
+          ...item,
+        })) || []
+    );
+  }, [categorySelected]);
+
   async function createCategory(v: CategoryType) {
     try {
       return await POST(apiRoute.create_category, v);
@@ -52,234 +71,115 @@ const CategoryPage = () => {
       alert(error);
     }
   }
+
+  const getCategory = async (value?: string) => {
+    setIsLoading(true);
+    try {
+      const url =
+        value === 'sub-subcategory'
+          ? apiRoute.list_sub_subcategory
+          : value === 'subcategory'
+          ? apiRoute.list_subcategory
+          : apiRoute.list_category;
+
+      const res = await GET(url);
+      if (res.status === 200) {
+        setCategorySelected(res.data?.results?.[0]?.id?.toString());
+        handlers.setState(res.data?.results);
+      }
+
+      setIsLoading(false);
+    } catch (error) {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (type: 'category' | 'sub', value: string) => {
+    switch (type) {
+      case 'category':
+        if (value !== categorySelected) {
+          setCategorySelected(value);
+          listSubCategory = [];
+          setSubCategorySelected(null);
+        }
+        break;
+      case 'sub':
+        if (value !== subCategorySelected) {
+          setSubCategorySelected(value);
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
   useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/category/list', {
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then((data) =>
-        setCategory(
-          data.map((item: Partial<CategoryType>) => ({
-            label: item.name,
-            value: item.id,
-          })),
-        ),
-      );
-    return () => controller.abort();
+    getCategory();
   }, []);
+
   return (
     <div
       style={{
-        display: 'flex',
-        gap: 20,
         maxWidth: 1440,
         margin: 'auto',
         justifyContent: 'space-evenly',
       }}
     >
-      <form
-        onSubmit={categoryForm.onSubmit((v: CategoryType) => createCategory(v))}
+      <Tabs
+        value={optionSelected}
+        onTabChange={(tab: string) => {
+          setOptionSelected(tab);
+          setCategorySelected(null);
+          setSubCategorySelected(null);
+          listSubCategory = [];
+          getCategory(tab);
+        }}
+        w={600}
       >
-        <Title order={2} c={'#B82C67'}>
-          Create category
-        </Title>
-
-        <div className="category-form">
-          <div className={'badge'}>
-            <span style={{ color: '#858585' }}>Category Name</span>
-            <TextInput
-              p={'0 10px'}
-              h={36}
-              variant={'unstyled'}
-              width={313}
-              mt={'8px'}
-              {...categoryForm.getInputProps('name')}
-              sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-              required
-            />
-          </div>
-          <div className={'badge'}>
-            <span style={{ color: '#858585' }}>Index</span>
-            <TextInput
-              p={'0 10px'}
-              h={36}
-              variant={'unstyled'}
-              width={313}
-              min={1}
-              type="number"
-              mt={'8px'}
-              onChange={(v) =>
-                categoryForm.setFieldValue('index', +v.target.value)
-              }
-              sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-              required
-            />
-          </div>
-          <div className="badge">
-            <Checkbox
-              label="Enable"
-              {...categoryForm.getInputProps('enable')}
-              defaultChecked
-            />
-          </div>
-          {/* <div>
-          <h4 style={{ color: '#E7639A' }}>Image</h4>
-          {image ? (
-            <>
-              <ImagePreview
-                imageWidth={174}
-                imageHeight={174}
-                remove={false}
-                image={image}
-                onReplace={(file) => {
-                  setState((p) => ({ ...p, loading: true }));
-                  const deleteRef = ref(storage, image);
-                  deleteObject(deleteRef)
-                    .then(() => console.log('success'))
-                    .catch((e) => console.warn(e));
-                  const imageRef = ref(storage, `test_image/${Date.now()}`);
-                  uploadBytes(imageRef, file).then((snapshot) => {
-                    getDownloadURL(snapshot.ref)
-                      .then((url) => {
-                        setState((p) => ({
-                          ...p,
-                          image: url,
-                          loading: false,
-                        }));
-
-                        form.setFieldValue('image', url);
-                      })
-                      .catch((e) => console.warn(e));
-                  });
+        <Tabs.List grow>
+          {listOption?.map((item: itemSelectType) => (
+            <Tabs.Tab key={item.value} value={item.value}>
+              <Title
+                c={'pink'}
+                order={4}
+                style={{
+                  width: '100%',
+                  display: 'block',
+                  textAlign: 'center',
                 }}
-              />
-            </>
-          ) : (
-            <Dropzone
-              onDrop={function (file: File[]) {
-                setState((p) => ({ ...p, loading: true }));
+              >
+                {item.label}
+              </Title>
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
 
-                const imageRef = ref(storage, `test_image/${Date.now()}`);
-                uploadBytes(imageRef, file?.[0]).then((snapshot) => {
-                  getDownloadURL(snapshot.ref)
-                    .then((url) => {
-                      setState((p) => ({
-                        ...p,
-                        image: url,
-                        loading: false,
-                      }));
-                      form.setFieldValue('image', url);
-                    })
-                    .catch((e) => console.warn(e));
-                });
-              }}
-              loading={loading}
-              w={174}
-              h={174}
-              pt={'50px'}
-              accept={IMAGE_MIME_TYPE}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src={'/add_image_ic.svg'}
-                  width={32}
-                  height={32}
-                  alt={'img'}
-                />
-                <p style={{ fontSize: '13px' }}>Add image</p>
-              </div>
-            </Dropzone>
-          )}
-        </div> */}
-          <div className={'badge'}>
-            <span style={{ color: '#858585' }}>Slug</span>
-            <TextInput
-              p={'0 10px'}
-              h={36}
-              variant={'unstyled'}
-              width={313}
-              min={1}
-              mt={'8px'}
-              {...categoryForm.getInputProps('slug')}
-              sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-              required
-            />
-          </div>
-          <Button
-            rightIcon={<img src="/plus.svg" alt="icon" />}
-            bg={'#B82C67'}
-            w={'11.6875rem'}
-            h={'2.625rem'}
-            type="submit"
-          >
-            Create category{' '}
-          </Button>
-        </div>
-      </form>
-      <form onSubmit={subCategoryForm.onSubmit((v) => createSubcategory(v))}>
-        <Title order={2} c={'#B82C67'}>
-          Create Subcategory
-        </Title>
-        <div className="category-form">
-          <div className={'badge'}>
-            <span style={{ color: '#858585' }}>Sub Category Name</span>
-            <TextInput
-              p={'0 10px'}
-              h={36}
-              variant={'unstyled'}
-              width={313}
-              mt={'8px'}
-              {...subCategoryForm.getInputProps('name')}
-              sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-              required
-            />
-          </div>
-          <div className="badge">
-            <span style={{ color: '#858585' }}>Category</span>
-            <CustomSelect
-              selectBG={{
-                color: '#FFE7EF',
-                image: '/down_arrow.svg',
-                posX: '18.5625rem',
-                posY: '18px',
-              }}
-              data={category}
-              onChange={function (
-                e: React.ChangeEvent<HTMLSelectElement>,
-              ): void {
-                subCategoryForm.setFieldValue('category', +e.target.value);
-              }}
-              width="19.5625rem"
-              height="2.25rem"
-            />
-          </div>
+      <HeaderCategory
+        optionSelected={optionSelected}
+        categorySelected={categorySelected}
+        subCategorySelected={subCategorySelected}
+        handleChange={handleChange}
+        listSubCategory={listSubCategory as any}
+        listCategory={listCategory as any}
+      />
 
-          <div className={'badge'}>
-            <span style={{ color: '#858585' }}>Slug</span>
-            <TextInput
-              p={'0 10px'}
-              h={36}
-              variant={'unstyled'}
-              width={313}
-              min={1}
-              mt={'8px'}
-              {...subCategoryForm.getInputProps('slug')}
-              sx={{ border: '1px solid #B82C67', borderRadius: '5px' }}
-              required
-            />
-          </div>
-          <Button
-            rightIcon={<img src="/plus.svg" alt="icon" />}
-            bg={'#B82C67'}
-            w={'11.6875rem'}
-            h={'2.625rem'}
-            type="submit"
-          >
-            Create Subcategory{' '}
-          </Button>
+      {isLoading ? (
+        <div
+          style={{
+            paddingTop: 150,
+            textAlign: 'center',
+          }}
+        >
+          <span className="loader" />
         </div>
-      </form>
+      ) : (
+        <CategoryTable
+          categoryData={state}
+          handlers={handlers}
+          optionSelected={optionSelected}
+        />
+      )}
     </div>
   );
 };

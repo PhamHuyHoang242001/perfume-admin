@@ -108,6 +108,7 @@ const AttributeCards: React.FC<attributeCardProps> = ({
               onChange={(e) =>
                 onNameColorChange && onNameColorChange(e.target?.value)
               }
+              defaultValue={attributeName}
               required
               min={1}
             />

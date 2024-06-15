@@ -41,10 +41,10 @@ type CategoryItem = {
 };
 
 export type CategoryType = {
-  id: number | string;
+  id?: number | string;
   name?: string;
   enable?: boolean;
-  image?: string;
+  image?: { id: number; url: string };
   index?: number;
   modified_time?: string;
   note?: string;
@@ -70,6 +70,7 @@ export interface voucherType {
 }
 
 export interface IProductForm {
+  id?: number;
   name: string;
   weight: number;
   status: string;
@@ -154,4 +155,9 @@ export type ordersListType = {
   dif_email: string;
   applied_voucher: string;
   user: number;
+};
+
+export type itemSelectType = {
+  value: string;
+  label: string;
 };

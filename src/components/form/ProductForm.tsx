@@ -111,7 +111,7 @@ const ProductForm = ({
   categorySelected,
 }: ProductFormProps) => {
   const listSubCategoryCurr = listCategory.find(
-    (item) => item.id === categorySelected,
+    (item) => item.id && categorySelected && +item.id === +categorySelected,
   );
 
   const [state, setState] = useState({
@@ -170,7 +170,7 @@ const ProductForm = ({
         description: '',
         composition: '',
       },
-      category_id: categorySelected as any,
+      category_id: (categorySelected && +categorySelected) as any,
       quantity: 1,
     },
   });
@@ -411,7 +411,7 @@ const ProductForm = ({
                   },
                 }}
                 onChange={(v) => {
-                  form.setFieldValue('category_id', v as any);
+                  form.setFieldValue('category_id', (v && +v) as any);
                   const newSubCate = listCategory.find(
                     (item) => v && item?.id && +item.id === +v,
                   );
