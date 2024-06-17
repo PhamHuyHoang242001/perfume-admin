@@ -1,10 +1,11 @@
 import { Tabs, Title } from '@mantine/core';
-import { useListState } from '@mantine/hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useDisclosure } from '@mantine/hooks';
+import { useEffect, useState } from 'react';
 import CategoryTable from '../components/category/CategoryTable';
 import HeaderCategory from '../components/category/HeaderCategory';
+import ModalContent from '../components/category/ModalContent';
 import { apiRoute } from '../utils/apiRoute';
-import { GET, POST } from '../utils/fetch';
+import { GET } from '../utils/fetch';
 import { CategoryType, itemSelectType } from '../utils/utilsInterface';
 
 const listOption = [
@@ -22,57 +23,38 @@ const listOption = [
   },
 ];
 
-const CategoryPage = () => {
-  const [categorySelected, setCategorySelected] = useState<string | null>('0');
-  const [subCategorySelected, setSubCategorySelected] = useState<string | null>(
-    null,
-  );
-  const [status, setStatus] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+export type ModalType = 'ADD' | 'EDIT' | 'DELETE';
 
+const CategoryPage = () => {
+  const [categorySelected, setCategorySelected] = useState<string[] | []>([]);
+  const [subCategorySelected, setSubCategorySelected] = useState<string[] | []>(
+    [],
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [listCategory, setListCategory] = useState<itemSelectType | []>([]);
+  const [listSubCategory, setListSubCategory] = useState<itemSelectType | []>(
+    [],
+  );
+  const [searchValue, setSearchValue] = useState<string>('');
   const [optionSelected, setOptionSelected] = useState<string | any>(
     listOption[0]?.value,
   );
-  const [state, handlers] = useListState<CategoryType>([]);
+  const [categoryData, setCategoryData] = useState<CategoryType[] | []>([]);
+  const [typeModal, setTypeModal] = useState<ModalType | null>('ADD');
 
-  let listCategory = useMemo(() => {
-    return (
-      state?.map((item) => ({
-        value: item.id,
-        label: item.name,
-        ...item,
-      })) || []
-    );
-  }, [state]);
+  const [opened, { open, close }] = useDisclosure(false);
 
-  let listSubCategory = useMemo(() => {
-    return (
-      listCategory
-        ?.find((item) => categorySelected && item.id === +categorySelected)
-        ?.subcategories?.map((item) => ({
-          value: item.id,
-          label: item.name,
-          ...item,
-        })) || []
-    );
-  }, [categorySelected]);
+  console.log('opened :>> ', opened);
 
-  async function createCategory(v: CategoryType) {
-    try {
-      return await POST(apiRoute.create_category, v);
-    } catch (error) {
-      alert(error);
-    }
-  }
-  async function createSubcategory(v: CategoryType) {
-    try {
-      return await POST('/api/subcategory/create', v);
-    } catch (error) {
-      alert(error);
-    }
-  }
-
-  const getCategory = async (value?: string) => {
+  const getListData = async (
+    value?: string,
+    option?: {
+      category: string[];
+      subcategory: string[];
+      search: string;
+    },
+    refreshSearch?: boolean,
+  ) => {
     setIsLoading(true);
     try {
       const url =
@@ -82,10 +64,30 @@ const CategoryPage = () => {
           ? apiRoute.list_subcategory
           : apiRoute.list_category;
 
-      const res = await GET(url);
+      const queryParams = {
+        page_size: 1000,
+        ...((categorySelected || option?.category) && {
+          category_id: option?.category ? option?.category : categorySelected,
+        }),
+        ...((subCategorySelected || option?.subcategory) && {
+          subcategory_id: option?.subcategory
+            ? option?.subcategory
+            : subCategorySelected,
+        }),
+        ...((searchValue || option?.search) && {
+          search: refreshSearch
+            ? ''
+            : option?.search
+            ? option?.search
+            : searchValue,
+        }),
+      };
+
+      const queryString = new URLSearchParams(queryParams as any).toString();
+
+      const res = await GET(url + '?' + queryString);
       if (res.status === 200) {
-        setCategorySelected(res.data?.results?.[0]?.id?.toString());
-        handlers.setState(res.data?.results);
+        setCategoryData(res.data?.results);
       }
 
       setIsLoading(false);
@@ -94,28 +96,88 @@ const CategoryPage = () => {
     }
   };
 
-  const handleChange = (type: 'category' | 'sub', value: string) => {
-    switch (type) {
-      case 'category':
-        if (value !== categorySelected) {
-          setCategorySelected(value);
-          listSubCategory = [];
-          setSubCategorySelected(null);
+  const getListOptions = async () => {
+    if (optionSelected === 'category') return;
+
+    try {
+      const url =
+        optionSelected === 'subcategory'
+          ? apiRoute.list_category
+          : apiRoute.list_subcategory;
+
+      const res = await GET(url);
+      const newData = res.data?.results?.map((item: any) => ({
+        label: item?.name,
+        value: item?.id,
+      }));
+
+      if (newData?.length > 0)
+        if (optionSelected === 'subcategory') {
+          setListCategory(newData);
+        } else {
+          setListSubCategory(newData);
         }
-        break;
-      case 'sub':
-        if (value !== subCategorySelected) {
-          setSubCategorySelected(value);
-        }
-        break;
-      default:
-        break;
+    } catch (error) {
+      console.log('error :>> ', error);
     }
   };
 
+  const handleChange = (type: 'category' | 'sub', value: string[]) => {
+    if (type === 'category') {
+      if (value !== categorySelected) {
+        setCategorySelected(value);
+        getListData(optionSelected, {
+          category: value,
+          subcategory:
+            optionSelected === 'subcategory' ? [] : subCategorySelected,
+          search: searchValue,
+        });
+      }
+      return;
+    }
+
+    if (value !== subCategorySelected) {
+      setSubCategorySelected(value);
+      getListData('sub-subcategory', {
+        category: categorySelected,
+        subcategory: value,
+        search: searchValue,
+      });
+    }
+  };
+
+  const handleSearch = () => {
+    getListData();
+  };
+
+  const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchValue(e.target.value);
+    if (e.target.value === '') {
+      getListData(
+        '',
+        {
+          category: categorySelected,
+          subcategory: subCategorySelected,
+          search: '',
+        },
+        true,
+      );
+    }
+  };
+
+  const handleOpenModal = (type: ModalType, value?: string | number | null) => {
+    console.log('value :>> ', value);
+    setTypeModal(type);
+    open();
+  };
+
   useEffect(() => {
-    getCategory();
+    getListData();
   }, []);
+
+  useEffect(() => {
+    getListOptions();
+  }, [optionSelected]);
 
   return (
     <div
@@ -129,10 +191,14 @@ const CategoryPage = () => {
         value={optionSelected}
         onTabChange={(tab: string) => {
           setOptionSelected(tab);
-          setCategorySelected(null);
-          setSubCategorySelected(null);
-          listSubCategory = [];
-          getCategory(tab);
+          setCategorySelected([]);
+          setSubCategorySelected([]);
+          setListSubCategory([]);
+          getListData(tab, {
+            category: [],
+            subcategory: [],
+            search: '',
+          });
         }}
         w={600}
       >
@@ -162,6 +228,10 @@ const CategoryPage = () => {
         handleChange={handleChange}
         listSubCategory={listSubCategory as any}
         listCategory={listCategory as any}
+        onSearch={onSearchChange}
+        handleSearch={handleSearch}
+        searchValue={searchValue}
+        handleOpenModal={handleOpenModal}
       />
 
       {isLoading ? (
@@ -175,11 +245,12 @@ const CategoryPage = () => {
         </div>
       ) : (
         <CategoryTable
-          categoryData={state}
-          handlers={handlers}
+          categoryData={categoryData}
           optionSelected={optionSelected}
+          handleOpenModal={handleOpenModal}
         />
       )}
+      <ModalContent close={close} opened={opened} typeModal={typeModal} />
     </div>
   );
 };
