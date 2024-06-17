@@ -1,4 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root body {
   line-height: 1.5;
@@ -59,8 +62,9 @@ input[type='date']::-webkit-calendar-picker-indicator {
   border: 1px solid #b82c67 !important;
 }
 
-td {
-  text-align: center;
+tbody tr td {
+  text-align: start;
+  border: none !important;
 }
 
 .attribute_input {
