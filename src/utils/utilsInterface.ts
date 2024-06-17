@@ -121,6 +121,7 @@ export type subsub = {
 export type ordersListType = {
   id: number;
   id_order: string;
+  paid_at: string | DateValue | any;
   payment_id: string;
   status: string;
   user_name: string;
@@ -145,6 +146,7 @@ export type ordersListType = {
   fee_ship: number;
   total_weight: number;
   total: number;
+  quantity: number;
   total_price_cart: number;
   total_price_payment: number;
   sub_total: number;
