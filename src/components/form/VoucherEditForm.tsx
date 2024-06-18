@@ -70,7 +70,6 @@ const VoucherEditForm = ({ onSuccess, id }: voucherFormprops) => {
       });
     }
   }
-  console.log(form.values.discount_type);
 
   return (
     <Box px={'4rem'}>

@@ -1,14 +1,18 @@
 import {
+  Button,
+  Group,
   Image,
+  Modal,
   Paper,
   Table,
+  Text,
   TextInput,
   createStyles,
   rem,
 } from '@mantine/core';
 import React, { useEffect, useState } from 'react';
 import { ordersListType } from '../utils/utilsInterface';
-import { GET } from '../utils/fetch';
+import { GET, PATCH } from '../utils/fetch';
 import dayjs from 'dayjs';
 import { twMerge } from 'tailwind-merge';
 
@@ -83,8 +87,19 @@ export default function ListOrder() {
     orderId: -1,
     page: 1,
     searchText: '',
+    rejectModal: false,
+    checkChangeStatus: false,
   });
-  const { status, tab, page, totalOrder, orderId, searchText } = state;
+  const {
+    status,
+    tab,
+    page,
+    totalOrder,
+    orderId,
+    searchText,
+    rejectModal,
+    checkChangeStatus,
+  } = state;
   async function getListOrder() {
     const res = await GET(
       `/api/admin/order?page=${page}${
@@ -95,10 +110,24 @@ export default function ListOrder() {
     );
     setData(res?.data);
   }
+  async function changeStatusOrder(status: number) {
+    try {
+      const res = await PATCH(`/api/admin/order/${orderId}/patch/`, {
+        status: status,
+      });
+      setState((pre) => ({
+        ...pre,
+        checkChangeStatus: !checkChangeStatus,
+      }));
+      console.log(res);
+    } catch (e) {
+      console.log(e);
+    }
+  }
 
   useEffect(() => {
     getListOrder();
-  }, [status, page, searchText]);
+  }, [status, page, searchText, checkChangeStatus]);
   async function getOrderDetail() {
     const res = await GET(`/api/admin/order/${orderId}/`);
     setOrderDetail(res?.data);
@@ -108,8 +137,7 @@ export default function ListOrder() {
     if (orderId !== -1) {
       getOrderDetail();
     }
-  }, [orderId]);
-  console.log(status);
+  }, [orderId, checkChangeStatus]);
 
   return tab === '1' ? (
     <div>
@@ -148,6 +176,7 @@ export default function ListOrder() {
                 setState((pre) => ({
                   ...pre,
                   status: item.value,
+                  page: 1,
                 }));
               }}
             >
@@ -168,6 +197,7 @@ export default function ListOrder() {
             setState((p) => ({
               ...p,
               searchText: e.target.value,
+              page: 1,
             }));
           }}
           style={{
@@ -553,15 +583,30 @@ export default function ListOrder() {
           </div>
           {orderDetail?.status === 3 ? (
             <div className="flex flex-row justify-between">
-              <button className="bg-[#DB1818] w-[184px] h-[48px] text-[16px] text-white font-bold rounded-lg ">
+              <button
+                onClick={() => {
+                  setState((prev) => ({ ...prev, rejectModal: true }));
+                }}
+                className="bg-[#DB1818] w-[184px] h-[48px] text-[16px] text-white font-bold rounded-lg "
+              >
                 REJECT
               </button>
-              <button className="bg-[#18DB4E] w-[184px] h-[48px] text-[16px] text-white font-bold rounded-lg ">
+              <button
+                onClick={() => {
+                  changeStatusOrder(4);
+                }}
+                className="bg-[#18DB4E] w-[184px] h-[48px] text-[16px] text-white font-bold rounded-lg "
+              >
                 ACCEPT
               </button>
             </div>
           ) : orderDetail?.status === 4 ? (
-            <button className="bg-[#1871DB] w-[291px] h-[48px] text-[16px] text-white font-bold rounded-lg mx-auto ">
+            <button
+              onClick={() => {
+                changeStatusOrder(7);
+              }}
+              className="bg-[#1871DB] w-[291px] h-[48px] text-[16px] text-white font-bold rounded-lg mx-auto "
+            >
               SWITCH TO DELIVERY
             </button>
           ) : orderDetail?.status === 5 ? (
@@ -569,7 +614,12 @@ export default function ListOrder() {
               Rejected
             </div>
           ) : orderDetail?.status === 7 ? (
-            <button className="bg-[#18DB4E] w-full h-[48px] text-[16px] text-white font-bold rounded-lg  ">
+            <button
+              onClick={() => {
+                changeStatusOrder(8);
+              }}
+              className="bg-[#18DB4E] w-full h-[48px] text-[16px] text-white font-bold rounded-lg  "
+            >
               DONE
             </button>
           ) : (
@@ -579,6 +629,49 @@ export default function ListOrder() {
           )}
         </div>
       </div>
+      <Modal
+        opened={rejectModal}
+        onClose={() => setState((prev) => ({ ...prev, rejectModal: false }))}
+        withCloseButton={false}
+        centered
+        radius={'md'}
+      >
+        <Paper px={'20px'} py={'16px'}>
+          <Text sx={{ fontSize: '16px', fontWeight: 600 }}>
+            Are you sure you want to reject this order?
+          </Text>
+          <Group sx={{ float: 'right' }} my={32}>
+            <Button
+              variant={'subtle'}
+              onClick={() => setState((p) => ({ ...p, rejectModal: false }))}
+            >
+              <span
+                style={{
+                  color: '#000',
+                  fontWeight: '500px',
+                  fontSize: '14px',
+                }}
+              >
+                Cancel
+              </span>
+            </Button>
+            <Button
+              onClick={() => {
+                changeStatusOrder(5);
+                setState((p) => ({ ...p, rejectModal: false }));
+              }}
+              style={{
+                color: '#fff',
+                fontWeight: '500px',
+                fontSize: '14px',
+                backgroundColor: '#E13434',
+              }}
+            >
+              Reject
+            </Button>
+          </Group>
+        </Paper>
+      </Modal>
     </div>
   );
 }
