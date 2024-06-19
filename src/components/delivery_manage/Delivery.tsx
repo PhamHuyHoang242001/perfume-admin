@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   ActionIcon,
   createStyles,
@@ -11,10 +10,11 @@ import {
   Title,
   UnstyledButton,
 } from '@mantine/core';
-import dayjs from 'dayjs';
-import { DELETE, POST, PUT } from '../../utils/fetch.ts';
-import useSWR, { mutate } from 'swr';
 import { IconCircleX } from '@tabler/icons-react';
+import dayjs from 'dayjs';
+import React from 'react';
+import useSWR, { mutate } from 'swr';
+import { POST, PUT } from '../../utils/fetch.ts';
 
 type shippingProps = {
   id?: number;
@@ -281,16 +281,7 @@ const Delivery = () => {
                                 >
                                   <img src={'/e_ic.svg'} alt={'icon'} />
                                 </ActionIcon>
-                                <ActionIcon
-                                  onClick={async () => {
-                                    const res = await DELETE(
-                                      `/api/delivery-cost/detail/${item.id}`,
-                                    );
-                                    if (res?.message === 'delete success') {
-                                      await mutate('get-delivery');
-                                    }
-                                  }}
-                                >
+                                <ActionIcon>
                                   <img src={'/del.svg'} alt={'icon'} />
                                 </ActionIcon>
                               </>

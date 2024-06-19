@@ -12,7 +12,6 @@ type CategoryTableProps = {
 const CategoryTable = ({
   categoryData,
   handleOpenModal,
-  total = 0,
   optionSelected,
 }: CategoryTableProps) => {
   return (

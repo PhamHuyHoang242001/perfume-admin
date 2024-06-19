@@ -128,7 +128,6 @@ const ProductEditForm = ({ listCategory, onSuccess, id }: ProductFormProps) => {
   });
   const {
     isLoading,
-    isLoadingImage,
     url_image,
     subCategory,
     subsubCategory,
