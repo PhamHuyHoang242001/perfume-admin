@@ -150,6 +150,14 @@ tbody tr td {
     margin-top: -12px;
     padding: 0px;
   }
+}
 
-
+.mantine-1v7s5f8 {
+  padding-left: 12px;
+  font-weight: 500;
+}
+.mantine-j3jbtx {
+  top: 50%;
+  transform: translate(0, -50%);
+  height: fit-content;
 }

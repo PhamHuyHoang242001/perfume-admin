@@ -99,7 +99,6 @@ const AttributeCards: React.FC<attributeCardProps> = ({
                 },
               }}
               h={24}
-              pl={10}
               mb={8}
               bg="white"
               maxLength={20}

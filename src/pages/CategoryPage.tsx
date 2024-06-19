@@ -31,8 +31,8 @@ const CategoryPage = () => {
     [],
   );
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [listCategory, setListCategory] = useState<itemSelectType | []>([]);
-  const [listSubCategory, setListSubCategory] = useState<itemSelectType | []>(
+  const [listCategory, setListCategory] = useState<itemSelectType[] | []>([]);
+  const [listSubCategory, setListSubCategory] = useState<itemSelectType[] | []>(
     [],
   );
   const [searchValue, setSearchValue] = useState<string>('');
@@ -41,10 +41,9 @@ const CategoryPage = () => {
   );
   const [categoryData, setCategoryData] = useState<CategoryType[] | []>([]);
   const [typeModal, setTypeModal] = useState<ModalType | null>('ADD');
+  const [itemSelected, setItemSelected] = useState<any | null>(null);
 
   const [opened, { open, close }] = useDisclosure(false);
-
-  console.log('opened :>> ', opened);
 
   const getListData = async (
     value?: string,
@@ -97,11 +96,9 @@ const CategoryPage = () => {
   };
 
   const getListOptions = async () => {
-    if (optionSelected === 'category') return;
-
     try {
       const url =
-        optionSelected === 'subcategory'
+        optionSelected === 'subcategory' || optionSelected === 'category'
           ? apiRoute.list_category
           : apiRoute.list_subcategory;
 
@@ -111,12 +108,13 @@ const CategoryPage = () => {
         value: item?.id,
       }));
 
-      if (newData?.length > 0)
-        if (optionSelected === 'subcategory') {
+      if (newData?.length > 0) {
+        if (optionSelected === 'subcategory' || optionSelected === 'category') {
           setListCategory(newData);
         } else {
           setListSubCategory(newData);
         }
+      }
     } catch (error) {
       console.log('error :>> ', error);
     }
@@ -165,10 +163,28 @@ const CategoryPage = () => {
     }
   };
 
-  const handleOpenModal = (type: ModalType, value?: string | number | null) => {
-    console.log('value :>> ', value);
+  const handleOpenModal = (type: ModalType, value?: any) => {
     setTypeModal(type);
     open();
+    if (value) setItemSelected(value);
+  };
+
+  const handleCloseModal = () => {
+    close();
+    if (itemSelected) setItemSelected(null);
+  };
+
+  const onSuccess = () => {
+    setSearchValue('');
+    getListData(
+      optionSelected,
+      {
+        category: [],
+        subcategory: [],
+        search: '',
+      },
+      true,
+    );
   };
 
   useEffect(() => {
@@ -194,11 +210,16 @@ const CategoryPage = () => {
           setCategorySelected([]);
           setSubCategorySelected([]);
           setListSubCategory([]);
-          getListData(tab, {
-            category: [],
-            subcategory: [],
-            search: '',
-          });
+          setSearchValue('');
+          getListData(
+            tab,
+            {
+              category: [],
+              subcategory: [],
+              search: '',
+            },
+            true,
+          );
         }}
         w={600}
       >
@@ -250,7 +271,15 @@ const CategoryPage = () => {
           handleOpenModal={handleOpenModal}
         />
       )}
-      <ModalContent close={close} opened={opened} typeModal={typeModal} />
+      <ModalContent
+        handleCloseModal={handleCloseModal}
+        opened={opened}
+        typeModal={typeModal}
+        optionSelected={optionSelected}
+        listCategory={listCategory}
+        onSuccess={onSuccess}
+        itemSelected={itemSelected}
+      />
     </div>
   );
 };

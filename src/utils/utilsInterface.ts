@@ -50,6 +50,14 @@ export type CategoryType = {
   note?: string;
   created_time?: string;
   slug?: string;
+  category?: {
+    id: number;
+    name: string;
+  };
+  subcategory?: {
+    id: number;
+    name: string;
+  };
   subcategories?: {
     id: number;
     name: string;

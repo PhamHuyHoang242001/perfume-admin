@@ -105,7 +105,7 @@ export const CustomSelectMultiple = ({
           paddingTop: 8,
         },
         '.mantine-1n7zxp': {
-          marginLeft: 16,
+          paddingLeft: 12,
         },
       }}
     />

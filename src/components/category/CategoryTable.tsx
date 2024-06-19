@@ -3,10 +3,9 @@ import { ModalType } from '../../pages/CategoryPage';
 import { CategoryType } from '../../utils/utilsInterface';
 
 type CategoryTableProps = {
-  handleOpenModal: (type: ModalType, value: number | string | null) => void;
+  handleOpenModal: (type: ModalType, value: any | null) => void;
   total?: number;
   categoryData: CategoryType[];
-
   optionSelected: string | any;
 };
 
@@ -46,7 +45,12 @@ const CategoryTable = ({
 
             <tbody>
               {categoryData?.map((item, index) => (
-                <tr>
+                <tr
+                  style={{
+                    background: index % 2 !== 0 ? '#FFE2EC80' : '',
+                  }}
+                  className="h-[60px] hover:bg-[#FFE2EC80]"
+                >
                   <td
                     style={{
                       textAlign: 'center',
@@ -58,27 +62,33 @@ const CategoryTable = ({
 
                   {optionSelected === 'category' && (
                     <td>
-                      <img src={item.image?.url} width={40} alt="" />
+                      <img
+                        src={item.image?.url}
+                        className="block mx-auto text-center"
+                        width={40}
+                        alt=""
+                      />
                     </td>
                   )}
                   {optionSelected === 'sub-subcategory' && (
-                    <td>Sub-sub-category</td>
+                    <td className="text-center">Sub-sub-category</td>
                   )}
-                  {optionSelected !== 'category' && <td>Sub-category</td>}
                   <td>{item.name}</td>
-                  <td>123</td>
-                  <td>
+
+                  {optionSelected !== 'category' && (
+                    <td className="text-center">{item?.category?.name}</td>
+                  )}
+                  <td className="text-center">123</td>
+                  <td className="text-center">
                     <UnstyledButton
-                      onClick={() => handleOpenModal('EDIT', item?.id || null)}
+                      onClick={() => handleOpenModal('EDIT', item || null)}
                     >
                       <img src="/pen.svg" alt="icon" />
                     </UnstyledButton>
                   </td>
-                  <td>
+                  <td className="text-center">
                     <UnstyledButton
-                      onClick={() =>
-                        handleOpenModal('DELETE', item?.id || null)
-                      }
+                      onClick={() => handleOpenModal('DELETE', item || null)}
                     >
                       <img src="/delete_btn.svg" alt="icon" />
                     </UnstyledButton>
