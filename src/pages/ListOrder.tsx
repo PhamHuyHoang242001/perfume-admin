@@ -77,7 +77,6 @@ const orderStatus = [
 ];
 export default function ListOrder() {
   const { classes, cx } = useStyles();
-  const [scrolled, setScrolled] = React.useState(false);
   const [orderDetail, setOrderDetail] = useState<any>({});
   const [data, setData] = useState<any>({});
   const [state, setState] = React.useState({
@@ -213,9 +212,7 @@ export default function ListOrder() {
           highlightOnHover
           withColumnBorders
         >
-          <thead
-            className={cx(classes.header, { [classes.scrolled]: scrolled })}
-          >
+          <thead className={cx(classes.header)}>
             <tr
               style={{
                 //   textAlign: 'center',
